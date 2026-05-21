@@ -1,0 +1,12 @@
+{
+  "name": "claves-health-ia",
+  "version": "1.0.0",
+  "description": "Proxy IA para Claves Health ATS",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
