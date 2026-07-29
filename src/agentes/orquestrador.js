@@ -6,7 +6,7 @@
  * Pipeline em duas fases, cada uma com seu proprio loop agentico:
  *
  *   FASE 1 — DESCOBERTA
- *     Varre PNCP + web procurando empresas com a dor do ICP. Sai com uma
+ *     Varre a web procurando empresas privadas com a dor do ICP. Sai com uma
  *     lista de candidatas (barata, ampla, superficial).
  *
  *   FASE 2 — APROFUNDAMENTO (uma execucao isolada por empresa)
@@ -154,9 +154,6 @@ function resumirEntrada(nome, entrada) {
   if (!entrada) return '';
   if (nome === 'buscar_web') return String(entrada.consulta || '').slice(0, 160);
   if (nome === 'ler_pagina') return String(entrada.url || '').slice(0, 160);
-  if (nome === 'pncp_licitacoes_saude') {
-    return `UF ${entrada.uf || 'todas'}, ultimos ${entrada.diasAtras || 60} dias`;
-  }
   if (entrada.nome) return String(entrada.nome).slice(0, 160);
   return '';
 }
@@ -355,7 +352,7 @@ async function executarPesquisa({
   });
 
   // ---------------------------------------------------------------- FASE 1
-  emitir('fase', { nome: 'descoberta', descricao: 'Varrendo PNCP e web em busca de empresas com a dor do ICP' });
+  emitir('fase', { nome: 'descoberta', descricao: 'Varrendo a web em busca de empresas privadas com a dor do ICP' });
 
   const ferramentasDescoberta = ferramentas.montar({
     fase: 'descoberta',

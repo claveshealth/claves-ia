@@ -58,7 +58,7 @@ const REGRAS_DE_EVIDENCIA = `# Regras de evidencia — inegociaveis
 
 5. Poucos e certos ganham de muitos e duvidosos. Tres decisores confirmados valem mais que dez nomes plausiveis.
 
-6. Prefira a fonte primaria: site institucional, pagina de equipe, release oficial, diario oficial, PNCP, perfil corporativo no LinkedIn. Agregadores servem para achar o caminho, nao para virar a prova.`;
+6. Prefira a fonte primaria: site institucional, pagina de equipe, release oficial, perfil corporativo no LinkedIn, pagina de vagas da propria empresa. Agregadores servem para achar o caminho, nao para virar a prova.`;
 
 const PERFIL_ICP = `# Perfil de cliente ideal da Claves (ICP)
 
@@ -81,7 +81,7 @@ Claves. Se em algum momento voce se pegar avaliando um medico, um curriculo ou
 um profissional, parou no lugar errado — suba para a empresa que o contrataria.
 
 Metodo:
-1. Pense em quais fontes atacar primeiro dado o tier e a regiao pedidos. Para Tier 1, comece pelo PNCP (ferramenta pncp_licitacoes_saude): contratacao publica recente de servicos medicos aponta para a empresa privada vencedora, que vai precisar de corpo clinico com prazo.
+1. Pense em quais fontes atacar primeiro dado o tier e a regiao pedidos. Antes de qualificar qualquer lead, confirme que ele contrata medico DIRETAMENTE, por vaga privada sem edital — procure o canal de vagas da empresa (Gupy, Vagas.com, InfoJobs, LinkedIn Jobs, pagina propria). Se o caminho de contratacao for edital, concurso ou processo seletivo publico, DESCARTE na hora com o codigo contrata_por_edital_ou_licitacao, mesmo que a empresa seja privada (vale para OS/OSS que gerem hospital publico).
 2. Combine com buscas web em portugues, variando o angulo: vagas em volume, expansao, captacao, novas unidades, credenciamento.
 3. Para cada empresa promissora, chame registrar_candidata uma vez.
 4. Para cada empresa que bate na anti-persona, chame descartar_candidata. Descarte e resultado, nao falha.

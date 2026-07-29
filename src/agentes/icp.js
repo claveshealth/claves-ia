@@ -21,9 +21,9 @@ const TIERS = {
     dorReal:
       'Vaga parada custa contrato. Cada unidade sem medico e receita perdida e risco de quebra de SLA com o cliente corporativo ou com o poder publico. Precisam de reposicao em volume, em varias cidades, com velocidade — o RH interno nao da conta sozinho.',
     sinaisDeCompra: [
-      'vitoria recente em licitacao ou contrato de fornecimento de medicos (radar PNCP)',
-      'expansao anunciada',
-      'captacao de investimento',
+      'expansao anunciada ou nova unidade',
+      'captacao de investimento, aquisicao ou fusao',
+      'novo contrato corporativo grande',
       'dezenas de vagas abertas simultaneamente em cidades diferentes',
     ],
     decisores: [
@@ -34,7 +34,7 @@ const TIERS = {
     ],
     clienteEspelho:
       'DaVita Brasil — reestruturacao com recomposicao simultanea de equipes em diversas unidades, necessidade critica de velocidade: 195 profissionais em menos de 30 dias com alto indice de retencao. O retrato do Tier 1 — escala, multiplas unidades, reposicao continua. Observacao: a DaVita e rede de nefrologia/dialise; entra no Tier 1 pela dor de escala, nao pelo segmento SST puro. E o case-ponte que prova que o Tier 1 acomoda grandes redes assistenciais com essa dor.',
-    ondeCacar: ['PNCP (ferramenta propria)', 'oHub', 'Google', 'LinkedIn', 'Lusha'],
+    ondeCacar: ['oHub', 'Google', 'LinkedIn', 'portais de vaga privados (Gupy, Vagas.com, InfoJobs)'],
     pesoBase: 100,
   },
   2: {
@@ -57,7 +57,7 @@ const TIERS = {
       'Fundadores / C-level (empresas jovens, decisao rapida e enxuta)',
     ],
     clienteEspelho: null,
-    ondeCacar: ['LinkedIn', 'associacoes de healthtech', 'Lusha'],
+    ondeCacar: ['LinkedIn', 'associacoes de healthtech', 'noticias de captacao (Startups, Neofeed, Brazil Journal)'],
     pesoBase: 85,
   },
   3: {
@@ -76,15 +76,15 @@ const TIERS = {
     ],
     decisores: ['Gerente de RH', 'Coordenador de Operacoes', 'Diretor de Expansao'],
     clienteEspelho: null,
-    ondeCacar: ['oHub (1.400+ empresas listadas)', 'Google Maps', 'Lusha'],
+    ondeCacar: ['oHub (1.400+ empresas listadas)', 'Google Maps', 'LinkedIn'],
     pesoBase: 70,
   },
   4: {
     id: 4,
-    nome: 'Telemedicina assistencial, hospitais e clinicas com vagas cronicas de especialistas',
+    nome: 'Telemedicina assistencial, hospitais e clinicas PRIVADOS com vagas cronicas de especialistas',
     resumo: 'Montar ou repor corpo clinico multi-especialidade sob prazo de abertura/expansao.',
     quemE:
-      'Operacoes assistenciais (nao-SST) — hospitais, clinicas de especialidades, telemedicina assistencial — que precisam montar ou repor corpo clinico em 10+ especialidades, tipicamente em eventos de expansao ou abertura de unidade.',
+      'Operacoes assistenciais privadas (nao-SST) — hospitais privados, clinicas de especialidades, telemedicina assistencial — que precisam montar ou repor corpo clinico em 10+ especialidades, tipicamente em eventos de expansao ou abertura de unidade. Hospital publico, filantropico sob contrato de gestao ou unidade gerida por OS NAO entra aqui: contrata por edital e esta fora do ICP.',
     dorReal:
       'Montar um corpo clinico multi-especialidade do zero, ou repor especialistas dificeis (que exigem RQE, subespecialidade), com prazo apertado para a operacao comecar/continuar rodando. Vaga de especialista fica aberta 30, 60, 90 dias — e dor publica e comprovada.',
     sinaisDeCompra: [
@@ -139,12 +139,12 @@ const ANTI_PERSONA = [
       'Editais ou politicas de compra que exigem pagamento so por contratacao efetivada, "success fee" puro com risco integral no fornecedor.',
   },
   {
-    codigo: 'orgao_publico_concurso',
-    titulo: 'Orgao publico com contratacao por concurso',
+    codigo: 'contrata_por_edital_ou_licitacao',
+    titulo: 'Contrata medico por edital, concurso ou processo seletivo publico',
     porque:
-      'Nao pode contratar headhunting para preencher vaga — o rito e concurso/edital. Prospectar aqui e queimar tempo em algo juridicamente inviavel.',
+      'REGRA ELIMINATORIA. Quem preenche vaga medica por rito publico nao pode contratar headhunting: o provimento e vinculado ao edital e a compra do fornecedor passa por licitacao. Nao importa a natureza juridica — Organizacao Social (OS/OSS) privada que gere unidade publica e publica "processo seletivo n.o X/2026" esta igualmente fora. Prospectar aqui e queimar tempo em algo juridicamente inviavel.',
     comoDetectar:
-      'Ente publico direto (prefeitura, secretaria, autarquia) cujo provimento de vaga medica se da por concurso publico ou processo seletivo proprio.',
+      'Publica edital, "processo seletivo n.o", concurso; cobra taxa de inscricao do candidato; seleciona por analise de titulos ou prova; gere unidade publica (hospital estadual/municipal, UPA, UBS, CAPS) sob contrato de gestao; aparece em portais de concurso (PCI Concursos, Folha Dirigida, JC Concursos, Qconcursos); ente publico direto (prefeitura, secretaria, autarquia, fundacao estatal).',
   },
   {
     codigo: 'intermediario_oportunista',
@@ -157,13 +157,23 @@ const ANTI_PERSONA = [
 ];
 
 /**
- * Nota importante sobre o Tier 1 vs anti-persona 5: uma EMPRESA PRIVADA que
- * vence licitacao para fornecer medicos ao poder publico e Tier 1 (e um dos
- * sinais mais fortes). O que e anti-persona e o ORGAO PUBLICO que preenche a
- * propria vaga por concurso. O agente precisa distinguir os dois.
+ * REGRA ELIMINATORIA DE CONTRATACAO DIRETA.
+ *
+ * O criterio que separa mercado enderecavel de tempo perdido NAO e natureza
+ * juridica (publico x privado) — e o RITO de contratacao. Se a empresa preenche
+ * vaga medica por edital/concurso/processo seletivo publico, ela nao pode
+ * contratar a Claves, ainda que seja pessoa juridica de direito privado.
+ *
+ * Isso elimina explicitamente as Organizacoes Sociais (OS/OSS) que gerem
+ * unidades publicas: elas sao privadas, vencem licitacao e escalam corpo
+ * clinico — mas fazem isso por edital proprio, com taxa de inscricao e analise
+ * de titulos. Pareciam o melhor Tier 1 do funil e sao, na pratica, inviaveis.
+ *
+ * Consequencia: o radar de licitacoes publicas (PNCP) foi removido do fluxo de
+ * descoberta. Ele mapeava exatamente o mercado que esta fora do ICP.
  */
-const NOTA_PNCP =
-  'Distinga sempre: o orgao publico que abre concurso para medico e ANTI-PERSONA. A empresa privada (OS, OSS, gestora, cooperativa ou prestadora) que VENCEU a licitacao e agora precisa escalar corpo clinico para executar o contrato e TIER 1 — e um dos sinais de compra mais fortes que existem.';
+const REGRA_CONTRATACAO_DIRETA =
+  'REGRA ELIMINATORIA: so e lead quem contrata medico DIRETAMENTE, por vaga CLT/PJ divulgada em canal privado (Gupy, Vagas.com, InfoJobs, LinkedIn Jobs, Solides, pagina propria de "trabalhe conosco"), sem edital. Quem contrata por licitacao, edital, concurso ou processo seletivo publico esta FORA — inclusive Organizacao Social (OS/OSS) privada que gere hospital publico, que e privada mas contrata por rito publico. Na duvida, procure o canal de vagas da empresa: se o caminho for edital com taxa de inscricao, DESCARTE com o codigo contrata_por_edital_ou_licitacao. O teste positivo (vaga privada, sem edital) e OBRIGATORIO para qualificar.';
 
 const STATUS_LEAD = [
   'novo',
@@ -201,7 +211,14 @@ function briefingCompleto() {
     (a, i) => `${i + 1}. [${a.codigo}] ${a.titulo}\n   Por que descartar: ${a.porque}\n   Como detectar: ${a.comoDetectar}`
   ).join('\n');
 
-  return `${blocosTier}\n\n# ANTI-PERSONA — nao gastar municao\nEstes perfis parecem cliente, consomem energia comercial e destroem margem. O SDR nao avanca, nao agenda, nao insiste. Se o lead se encaixar em qualquer um deles, DESCARTE com o codigo correspondente.\n\n${blocoAnti}\n\nATENCAO: ${NOTA_PNCP}`;
+  return `# FILTRO ZERO — aplique ANTES de qualquer tier\n${REGRA_CONTRATACAO_DIRETA}\n\n${blocosTier}\n\n# ANTI-PERSONA — nao gastar municao\nEstes perfis parecem cliente, consomem energia comercial e destroem margem. O SDR nao avanca, nao agenda, nao insiste. Se o lead se encaixar em qualquer um deles, DESCARTE com o codigo correspondente.\n\n${blocoAnti}`;
 }
 
-module.exports = { TIERS, ANTI_PERSONA, STATUS_LEAD, NOTA_PNCP, tier, briefingCompleto };
+module.exports = {
+  TIERS,
+  ANTI_PERSONA,
+  STATUS_LEAD,
+  REGRA_CONTRATACAO_DIRETA,
+  tier,
+  briefingCompleto,
+};

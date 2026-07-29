@@ -1,6 +1,29 @@
+# ⛔ LEAD DESQUALIFICADO — NÃO ABORDAR
+
+> **Status: descartado em 29/07/2026** · código `contrata_por_edital_ou_licitacao`
+>
+> **A SDR não deve ligar para este lead.** O ISGH contrata médico por edital
+> (Processo Seletivo 127/2026, taxa de inscrição de R$ 120, seleção por análise
+> de títulos). Pela regra do ICP, quem preenche vaga médica por rito público não
+> pode contratar a Claves — não importa que o ISGH seja pessoa jurídica de
+> direito privado.
+>
+> **Este documento fica no repositório como caso-fonte da regra, não como lead.**
+> Foi justamente ele que expôs o erro do ICP anterior: a antiga `NOTA_PNCP`
+> mandava tratar OS que vence licitação como "um dos sinais de compra mais
+> fortes que existem". Era o inverso da verdade. OS/OSS são privadas, vencem
+> licitação e escalam corpo clínico — mas por edital, o que as torna inviáveis.
+> O radar PNCP foi removido do fluxo de descoberta por mapear exatamente esse
+> mercado fora do ICP.
+>
+> Toda a pesquisa abaixo está correta e verificada; o que estava errado era o
+> critério de qualificação que a admitia.
+
+---
+
 # Dossiê de prospecção — ISGH (Instituto de Saúde e Gestão Hospitalar)
 
-**Pesquisa em 29/07/2026** · Tier 1 · Lead para abordagem imediata
+**Pesquisa em 29/07/2026** · ~~Tier 1~~ · **desqualificado**
 **Toda evidência abaixo é de jun–jul/2026.** Nada aqui tem mais de 60 dias.
 
 ---

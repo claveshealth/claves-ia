@@ -9,7 +9,6 @@
  * o modelo "devolve" um lead sem precisarmos parsear texto livre.
  */
 
-const pncp = require('../fontes/pncp');
 const buscaWeb = require('../fontes/buscaWeb');
 
 const ESQUEMA_FONTE = {
@@ -67,31 +66,6 @@ const ESQUEMA_DECISOR = {
 };
 
 const FERRAMENTAS_PESQUISA = [
-  {
-    nome: 'pncp_licitacoes_saude',
-    descricao:
-      'Consulta o Portal Nacional de Contratacoes Publicas (PNCP) por contratacoes de servicos medicos e de saude publicadas recentemente. Use no Tier 1: uma licitacao grande de fornecimento de medicos indica que a EMPRESA PRIVADA vencedora vai precisar escalar corpo clinico com prazo contratual. Depois de achar a contratacao, use busca web para descobrir quem venceu/foi homologado — o vencedor e o lead, nao o orgao publico.',
-    esquema: {
-      type: 'object',
-      properties: {
-        diasAtras: {
-          type: 'integer',
-          description: 'Janela retroativa em dias (padrao 60, maximo 365).',
-        },
-        uf: { type: 'string', description: 'Sigla do estado para filtrar, ex.: SP, MG, BA. Omita para busca nacional.' },
-        maxResultados: { type: 'integer', description: 'Maximo de contratacoes a retornar (padrao 40).' },
-      },
-      required: [],
-    },
-    async executar(entrada, contexto) {
-      return pncp.buscarContratacoesSaude({
-        diasAtras: Number(entrada.diasAtras) || 60,
-        uf: entrada.uf || null,
-        maxResultados: Math.min(Number(entrada.maxResultados) || 40, 60),
-        signal: contexto.signal,
-      });
-    },
-  },
   {
     nome: 'buscar_web',
     descricao:
@@ -354,7 +328,6 @@ const FERRAMENTA_DESCARTE = {
  */
 function montar({ fase, incluirWeb }) {
   const web = FERRAMENTAS_PESQUISA.filter((f) => {
-    if (f.nome === 'pncp_licitacoes_saude') return fase === 'descoberta';
     return incluirWeb;
   });
 
