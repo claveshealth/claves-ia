@@ -133,7 +133,7 @@ const FERRAMENTAS_PESQUISA = [
 const FERRAMENTA_CANDIDATA = {
   nome: 'registrar_candidata',
   descricao:
-    'Registra uma empresa candidata encontrada na fase de descoberta. Chame uma vez por empresa. Nao aprofunde aqui — o aprofundamento e uma etapa separada.',
+    'Registra uma EMPRESA CONTRATANTE candidata encontrada na descoberta — ou seja, uma empresa que pode comprar o servico da Claves. NUNCA registre um medico, candidato ou curriculo aqui: se voce achou uma vaga, o registro e a empresa que publicou a vaga, nao a vaga nem o profissional. Chame uma vez por empresa. Nao aprofunde aqui — o aprofundamento e uma etapa separada.',
   esquema: {
     type: 'object',
     properties: {
@@ -175,7 +175,7 @@ const FERRAMENTA_CANDIDATA = {
 const FERRAMENTA_DOSSIE = {
   nome: 'registrar_lead_qualificado',
   descricao:
-    'Registra o dossie final de UMA empresa qualificada. Chame exatamente uma vez, ao final da investigacao, com tudo que voce comprovou. Todo dado factual precisa vir de uma fonte que voce realmente abriu.',
+    'Registra o dossie final de UMA EMPRESA CONTRATANTE qualificada — a empresa que vai contratar e pagar pelo servico da Claves. Nunca um medico ou candidato. Chame exatamente uma vez, ao final da investigacao, com tudo que voce comprovou. Todo dado factual precisa vir de uma fonte que voce realmente abriu.',
   esquema: {
     type: 'object',
     properties: {
@@ -226,7 +226,8 @@ const FERRAMENTA_DOSSIE = {
       },
       vagasAbertas: {
         type: 'array',
-        description: 'Vagas medicas abertas encontradas publicamente.',
+        description:
+          'EVIDENCIA DA DOR desta empresa: vagas medicas que ELA tem abertas publicamente. Isso mede o tamanho do problema que a Claves resolveria — nao e uma lista de oportunidades para medicos.',
         items: {
           type: 'object',
           properties: {
@@ -247,7 +248,7 @@ const FERRAMENTA_DOSSIE = {
       decisores: {
         type: 'array',
         description:
-          'Tomadores de decisao com nome completo e cargo comprovados em fonte publica ATUAL. Prefira poucos e certos a muitos e duvidosos. Nunca inclua quem ja saiu da empresa.',
+          'Pessoas que APROVAM A COMPRA de um servico de recrutamento dentro desta empresa (Diretor de Operacoes Medicas, Diretor Medico, Head de Gente/RH, CEO, Diretor Tecnico, gestor da unidade). NAO sao medicos sendo recrutados. Nome completo e cargo comprovados em fonte publica ATUAL. Prefira poucos e certos a muitos e duvidosos. Nunca inclua quem ja saiu da empresa.',
         items: ESQUEMA_DECISOR,
       },
       antiPersona: {

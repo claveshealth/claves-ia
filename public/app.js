@@ -426,7 +426,7 @@ async function abrirGaveta(leadId) {
   }
 
   painel.appendChild(
-    bloco(`Tomadores de decisão (${contatos.length})`,
+    bloco(`Quem aprova a compra (${contatos.length})`,
       contatos.length
         ? contatos.map(renderizarDecisor)
         : el('p', { classe: 'ajuda', texto: 'Nenhum decisor confirmado nesta execução.' })
@@ -438,7 +438,12 @@ async function abrirGaveta(leadId) {
   }
 
   if ((lead.vagasAbertas || []).length) {
-    painel.appendChild(bloco('Vagas abertas encontradas', lead.vagasAbertas.map(renderizarVaga)));
+    painel.appendChild(
+      bloco(
+        'Evidência da dor — vagas que esta empresa tem abertas',
+        lead.vagasAbertas.map(renderizarVaga)
+      )
+    );
   }
 
   const ficha = el('table', { classe: 'tabela-dados' });
@@ -661,7 +666,7 @@ async function executarPesquisa() {
   } finally {
     estado.execucaoAtiva = null;
     $('#btn-pesquisar').disabled = false;
-    $('#btn-pesquisar').textContent = 'Buscar e captar leads';
+    $('#btn-pesquisar').textContent = 'Buscar empresas que precisam da Claves';
     $('#btn-cancelar').hidden = true;
   }
 }

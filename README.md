@@ -1,9 +1,18 @@
 # Claves CRM IA
 
-CRM de prospecção da **Claves Health** com agentes de IA que vasculham a
+CRM de prospecção **B2B** da **Claves Health** com agentes de IA que vasculham a
 internet, qualificam empresas contra o ICP (Tiers 1–4), descartam anti-persona
-e entregam os **tomadores de decisão com nome completo e cargo comprovados em
+e entregam **quem aprova a compra, com nome completo e cargo comprovados em
 fonte pública atual**.
+
+> **O lead é a empresa que contrata a Claves — nunca um médico.**
+> Este é um sistema de prospecção comercial, não um banco de candidatos. O
+> agente é explicitamente proibido de buscar, qualificar ou registrar médicos,
+> currículos e candidatos. Quando encontra uma vaga médica aberta, ela entra
+> como **evidência da dor** da empresa que a publicou — e o lead é essa empresa.
+> Os "decisores" do dossiê são as pessoas que aprovam a compra de um serviço de
+> recrutamento (Diretor de Operações Médicas, Diretor Médico, Head de Gente/RH,
+> CEO), não profissionais sendo recrutados.
 
 ---
 
