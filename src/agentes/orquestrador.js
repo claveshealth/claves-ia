@@ -154,6 +154,9 @@ function resumirEntrada(nome, entrada) {
   if (!entrada) return '';
   if (nome === 'buscar_web') return String(entrada.consulta || '').slice(0, 160);
   if (nome === 'ler_pagina') return String(entrada.url || '').slice(0, 160);
+  if (nome === 'buscar_linkedin') {
+    return `LinkedIn: ${String(entrada.empresa || '').slice(0, 90)}`;
+  }
   if (entrada.nome) return String(entrada.nome).slice(0, 160);
   return '';
 }

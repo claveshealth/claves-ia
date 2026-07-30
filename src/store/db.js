@@ -18,7 +18,7 @@ const path = require('node:path');
 const config = require('../config');
 
 const ESTADO_INICIAL = {
-  versao: 2,
+  versao: 3,
   usuarios: [],
   configuracoes: {
     llm: {
@@ -26,17 +26,51 @@ const ESTADO_INICIAL = {
       provedorAtivoId: null,
     },
     integracoes: {
-      // chaves opcionais (busca web para provedores sem web search nativo, Lusha)
+      // chaves opcionais (busca web para provedores sem web search nativo)
       buscaWeb: null,
-      lusha: null,
+      email: null, // SMTP para envio a partir do CRM (senha cifrada)
     },
   },
   leads: [],
   contatos: [],
-  atividades: [],
+  atividades: [], // historico de contato por lead (e-mail enviado, ligacao, nota)
   execucoes: [], // historico das pesquisas do agente
   auditoria: [],
 };
+
+/**
+ * Migracoes de esquema. Cada uma leva o banco de uma versao para a seguinte e
+ * precisa ser idempotente — o boot roda todas as pendentes em ordem.
+ */
+function migrar(dados) {
+  let mudou = false;
+
+  if (!dados.versao || dados.versao < 3) {
+    // v3 introduziu papeis (admin/gestor/sdr) e desativacao de usuario.
+    for (const usuario of dados.usuarios || []) {
+      if (!usuario.papel) {
+        usuario.papel = 'admin';
+        mudou = true;
+      }
+      if (usuario.ativo === undefined) {
+        usuario.ativo = true;
+        mudou = true;
+      }
+    }
+    // Leads antigos podem nao ter dono; ficam sem dono e visiveis so a gestor
+    // e admin, que reatribuem pela tela de pipeline.
+    for (const lead of dados.leads || []) {
+      if (lead.dono === undefined) {
+        lead.dono = null;
+        mudou = true;
+      }
+    }
+    dados.versao = 3;
+    mudou = true;
+  }
+
+  return mudou;
+}
 
 let cache = null;
 let filaEscrita = Promise.resolve();
@@ -67,6 +101,15 @@ function carregar() {
     }
     if (!cache.configuracoes.integracoes) {
       cache.configuracoes.integracoes = clonarProfundo(ESTADO_INICIAL.configuracoes.integracoes);
+    }
+    if (migrar(cache)) {
+      // Persiste o esquema migrado de forma sincrona: se o processo cair antes
+      // da primeira escrita assincrona, o banco em disco continuaria na versao
+      // antiga e a migracao rodaria de novo (e idempotente, mas evitamos).
+      garantirDiretorio();
+      const temporario = `${config.arquivoDados}.${process.pid}.migr.tmp`;
+      fs.writeFileSync(temporario, JSON.stringify(cache, null, 2), { encoding: 'utf8', mode: 0o600 });
+      fs.renameSync(temporario, config.arquivoDados);
     }
   } catch (erro) {
     if (erro.code !== 'ENOENT') {

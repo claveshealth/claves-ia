@@ -10,6 +10,7 @@
  */
 
 const buscaWeb = require('../fontes/buscaWeb');
+const linkedin = require('../fontes/linkedin');
 
 const ESQUEMA_FONTE = {
   type: 'object',
@@ -99,6 +100,36 @@ const FERRAMENTAS_PESQUISA = [
     },
     async executar(entrada, contexto) {
       return buscaWeb.lerPagina({ url: String(entrada.url || ''), signal: contexto.signal });
+    },
+  },
+  {
+    nome: 'buscar_linkedin',
+    descricao:
+      'Busca DECISORES de uma empresa em perfis publicos do LinkedIn e devolve nome, cargo, empresa do titulo, URL do perfil e um nivel de confianca. Use SEMPRE que precisar achar quem aprova a compra numa empresa — e mais preciso que buscar_web para isso, porque le o titulo do perfil de forma estruturada. Passe o nome da empresa e, se quiser, os cargos alvo. IMPORTANTE: `confianca: alta` significa que nome, cargo e empresa vieram do titulo do perfil; `media` e `baixa` exigem que voce confirme em outra fonte antes de afirmar o cargo. Se vier vazio, registre a lacuna — NUNCA invente nome de decisor.',
+    esquema: {
+      type: 'object',
+      properties: {
+        empresa: { type: 'string', description: 'Nome da empresa alvo.' },
+        cargos: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'Cargos a procurar, ex.: ["diretor medico", "head de gente", "diretor de operacoes"]. Omita para usar os cargos padrao de decisor.',
+        },
+        regiao: { type: 'string', description: 'Cidade ou estado, para desambiguar homonimos.' },
+      },
+      required: ['empresa'],
+    },
+    async executar(entrada, contexto) {
+      const cargos = Array.isArray(entrada.cargos)
+        ? entrada.cargos.map((c) => String(c).slice(0, 80)).filter(Boolean).slice(0, 6)
+        : [];
+      return linkedin.buscarPessoas({
+        empresa: String(entrada.empresa || '').slice(0, 200),
+        cargos,
+        regiao: entrada.regiao ? String(entrada.regiao).slice(0, 80) : null,
+        signal: contexto.signal,
+      });
     },
   },
 ];
@@ -323,16 +354,24 @@ const FERRAMENTA_DESCARTE = {
 
 /**
  * Monta o conjunto de ferramentas de uma fase.
- * `incluirWeb` fica false quando o provedor tem busca nativa (Anthropic) —
- * nesse caso o modelo usa as server tools em vez das nossas.
+ *
+ * `incluirWeb` fica false quando o provedor tem busca nativa (Anthropic) — nesse
+ * caso o modelo usa as server tools dele em vez de buscar_web/ler_pagina.
+ *
+ * `buscar_linkedin` e a excecao: ela entra mesmo com provedor de busca nativa,
+ * porque nao e "mais uma busca". Ela restringe a consulta a site:linkedin.com/in,
+ * faz o parse do titulo publico em nome/cargo/empresa e calcula confianca — o
+ * que a busca generica do provedor nao devolve estruturado. So depende de haver
+ * uma chave de busca cadastrada (Serper/Brave/Tavily).
  */
 function montar({ fase, incluirWeb }) {
-  const web = FERRAMENTAS_PESQUISA.filter((f) => {
+  const disponiveis = FERRAMENTAS_PESQUISA.filter((f) => {
+    if (f.nome === 'buscar_linkedin') return buscaWeb.buscaDisponivel();
     return incluirWeb;
   });
 
-  if (fase === 'descoberta') return [...web, FERRAMENTA_CANDIDATA, FERRAMENTA_DESCARTE];
-  return [...web, FERRAMENTA_DOSSIE, FERRAMENTA_DESCARTE];
+  if (fase === 'descoberta') return [...disponiveis, FERRAMENTA_CANDIDATA, FERRAMENTA_DESCARTE];
+  return [...disponiveis, FERRAMENTA_DOSSIE, FERRAMENTA_DESCARTE];
 }
 
 module.exports = { montar, FERRAMENTAS_PESQUISA, FERRAMENTA_DOSSIE };

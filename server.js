@@ -19,6 +19,8 @@ const sessao = require('./src/security/sessao');
 const limites = require('./src/security/limites');
 const auth = require('./src/rotas/auth');
 const api = require('./src/rotas/api');
+const usuarios = require('./src/rotas/usuarios');
+const email = require('./src/rotas/email');
 const { cabecalhosSeguranca, erro, ipCliente } = require('./src/lib/http');
 
 // ---------------------------------------------------------------- roteador
@@ -48,13 +50,35 @@ rota('POST', '/api/auth/senha', auth.trocarSenha);
 
 rota('GET', '/api/meta', api.metadados);
 
+// Equipe: cadastro de gestor e SDR, reset de senha, transferencia de carteira.
+rota('GET', '/api/usuarios', usuarios.listar);
+rota('POST', '/api/usuarios', usuarios.criar);
+rota('PATCH', '/api/usuarios/:id', usuarios.atualizar);
+rota('POST', '/api/usuarios/:id/senha', usuarios.redefinirSenha);
+rota('POST', '/api/usuarios/:id/transferir-leads', usuarios.transferirLeads);
+
 rota('GET', '/api/leads', api.listarLeads);
+rota('GET', '/api/kanban', api.kanban);
 rota('GET', '/api/leads/exportar', api.exportarCsv);
 rota('GET', '/api/leads/:id', api.obterLead);
 rota('PATCH', '/api/leads/:id', api.atualizarLead);
 rota('DELETE', '/api/leads/:id', api.removerLead);
+rota('PATCH', '/api/leads/:id/dono', api.reatribuirLead);
+
+// Decisores: busca no indice publico do LinkedIn e cadastro manual.
+rota('GET', '/api/leads/:id/decisores/linkedin', api.buscarDecisores);
+rota('POST', '/api/leads/:id/contatos', api.criarContato);
+rota('DELETE', '/api/leads/:id/contatos/:contatoId', api.removerContato);
+
+// E-mail: envio a partir do lead e registro manual de contato.
+rota('POST', '/api/leads/:id/email', email.criarEnviar({ leadNoEscopo: api.leadNoEscopo }));
+rota('POST', '/api/leads/:id/atividades', email.criarRegistrarAtividade({ leadNoEscopo: api.leadNoEscopo }));
 
 rota('GET', '/api/config', api.listarConfiguracoes);
+rota('GET', '/api/config/email', email.obterConfiguracao);
+rota('POST', '/api/config/email', email.salvarConfiguracao);
+rota('DELETE', '/api/config/email', email.removerConfiguracao);
+rota('POST', '/api/config/email/testar', email.testarConfiguracao);
 rota('POST', '/api/config/llm', api.criarCredencial);
 rota('DELETE', '/api/config/llm/:id', api.excluirCredencial);
 rota('POST', '/api/config/llm/:id/ativar', api.ativarCredencial);
@@ -170,6 +194,13 @@ async function tratar(req, res) {
     if (!usuario) {
       sessao.destruir(idSessao);
       return erro(res, 401, 'Usuario nao encontrado.');
+    }
+
+    // Defesa em profundidade: desativar ja derruba as sessoes na hora, mas se
+    // uma escapar (ex.: alteracao direta no arquivo de dados), ela morre aqui.
+    if (usuario.ativo === false) {
+      sessao.destruir(idSessao);
+      return erro(res, 403, 'Esta conta esta desativada.');
     }
 
     contexto.idSessao = idSessao;

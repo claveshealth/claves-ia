@@ -5,18 +5,63 @@ const llm = require('../llm');
 const icp = require('../agentes/icp');
 const orquestrador = require('../agentes/orquestrador');
 const buscaWeb = require('../fontes/buscaWeb');
+const linkedin = require('../fontes/linkedin');
+const email = require('./email');
 const limites = require('../security/limites');
-const { cifrar, mascarar } = require('../security/crypto');
+const papeis = require('../security/papeis');
+const { cifrar, mascarar, id: novoId } = require('../security/crypto');
 const { json, erro, lerJson, texto, umDe } = require('../lib/http');
 const config = require('../config');
+
+// ------------------------------------------------------------ escopo de lead
+
+/**
+ * Regra central de visibilidade: o lead pertence ao SDR que disparou a
+ * pesquisa. SDR ve e mexe apenas no proprio kanban; gestor e admin veem o
+ * pipeline da equipe inteira e podem reatribuir.
+ */
+function visivelPara(lead, usuario) {
+  if (papeis.podeVerTodosLeads(usuario)) return true;
+  return lead.dono === usuario.id;
+}
+
+function nomeDono(dados, donoId) {
+  if (!donoId) return null;
+  const dono = dados.usuarios.find((u) => u.id === donoId);
+  return dono ? dono.nome || dono.email : null;
+}
+
+/** Busca o lead respeitando o escopo; devolve null quando nao pode ser visto. */
+function leadNoEscopo(contexto) {
+  const dados = db.estado();
+  const lead = dados.leads.find((l) => l.id === contexto.parametros.id);
+  if (!lead) return { erro: 404, mensagem: 'Lead nao encontrado.' };
+  if (!visivelPara(lead, contexto.usuario)) {
+    // 404 em vez de 403: nao revelamos a existencia de lead de outro SDR.
+    return { erro: 404, mensagem: 'Lead nao encontrado.' };
+  }
+  return { lead, dados };
+}
 
 // Execucoes em andamento por usuario (para limitar concorrencia e cancelar).
 const execucoesAtivas = new Map(); // usuarioId -> Set<AbortController>
 
 // ---------------------------------------------------------------- metadados
 
-function metadados(req, res) {
+function metadados(req, res, contexto) {
   json(res, 200, {
+    papeis: papeis.PAPEIS,
+    descricaoPapeis: papeis.DESCRICAO,
+    permissoes: {
+      verTodosLeads: papeis.podeVerTodosLeads(contexto.usuario),
+      reatribuirLead: papeis.podeReatribuirLead(contexto.usuario),
+      gerenciarUsuarios: papeis.podeGerenciarUsuarios(contexto.usuario),
+      configurarIntegracoes: papeis.podeConfigurarIntegracoes(contexto.usuario),
+      papeisQuePodeAtribuir: papeis.papeisQuePodeAtribuir(contexto.usuario),
+    },
+    buscaLinkedinDisponivel: buscaWeb.buscaDisponivel(),
+    emailConfigurado: email.emailConfigurado(),
+    cargosDecisores: linkedin.CARGOS_DECISORES,
     tiers: Object.values(icp.TIERS).map((t) => ({
       id: t.id,
       nome: t.nome,
@@ -53,7 +98,13 @@ function listarLeads(req, res, contexto) {
   const filtroBusca = (params.get('q') || '').toLowerCase().trim();
   const incluirDescartados = params.get('descartados') === '1';
 
-  let leads = dados.leads.slice();
+  let leads = dados.leads.filter((l) => visivelPara(l, contexto.usuario));
+
+  // Gestor/admin podem focar o pipeline de um SDR especifico.
+  const filtroDono = params.get('dono');
+  if (filtroDono && papeis.podeVerTodosLeads(contexto.usuario)) {
+    leads = leads.filter((l) => (filtroDono === 'sem_dono' ? !l.dono : l.dono === filtroDono));
+  }
 
   if (!incluirDescartados) leads = leads.filter((l) => l.status !== 'descartado');
   if (filtroTier) leads = leads.filter((l) => String(l.tier) === filtroTier);
@@ -82,8 +133,13 @@ function listarLeads(req, res, contexto) {
     contatosPorLead.set(contato.leadId, contatosPorLead.get(contato.leadId) + 1);
   }
 
+  // O resumo respeita o mesmo escopo da listagem: SDR nunca ve contagem que
+  // inclua lead de outro. Por isso parte do universo visivel, nao de dados.leads.
+  const universo = dados.leads.filter((l) => visivelPara(l, contexto.usuario));
+
   json(res, 200, {
     total: leads.length,
+    escopo: papeis.podeVerTodosLeads(contexto.usuario) ? 'equipe' : 'proprio',
     leads: leads.map((l) => ({
       id: l.id,
       empresa: l.empresa,
@@ -96,32 +152,127 @@ function listarLeads(req, res, contexto) {
       totalSinais: (l.sinaisDeCompra || []).length,
       totalDecisores: contatosPorLead.get(l.id) || 0,
       antiPersona: l.antiPersona,
+      dono: l.dono || null,
+      donoNome: nomeDono(dados, l.dono),
       criadoEm: l.criadoEm,
       atualizadoEm: l.atualizadoEm,
     })),
     resumo: {
-      total: dados.leads.length,
+      total: universo.length,
       porTier: [1, 2, 3, 4].map((t) => ({
         tier: t,
-        quantidade: dados.leads.filter((l) => l.tier === t && l.status !== 'descartado').length,
+        quantidade: universo.filter((l) => l.tier === t && l.status !== 'descartado').length,
       })),
-      descartados: dados.leads.filter((l) => l.status === 'descartado').length,
+      porStatus: icp.STATUS_LEAD.map((s) => ({
+        status: s,
+        quantidade: universo.filter((l) => l.status === s).length,
+      })),
+      descartados: universo.filter((l) => l.status === 'descartado').length,
     },
   });
 }
 
-function obterLead(req, res, contexto) {
+/**
+ * Kanban: os leads visiveis agrupados por status, na ordem do funil.
+ * E a tela onde o SDR trabalha o que a pesquisa dele trouxe.
+ */
+function kanban(req, res, contexto) {
+  const dados = db.estado();
+  const params = contexto.url.searchParams;
+
+  let leads = dados.leads.filter((l) => visivelPara(l, contexto.usuario));
+
+  const filtroDono = params.get('dono');
+  if (filtroDono && papeis.podeVerTodosLeads(contexto.usuario)) {
+    leads = leads.filter((l) => (filtroDono === 'sem_dono' ? !l.dono : l.dono === filtroDono));
+  }
+
+  // "descartado" nao e coluna de trabalho: fica fora do quadro por padrao.
+  const colunas = icp.STATUS_LEAD.filter((s) => s !== 'descartado');
+
+  const cartao = (l) => ({
+    id: l.id,
+    empresa: l.empresa?.nome || null,
+    cidade: l.empresa?.cidade || null,
+    uf: l.empresa?.uf || null,
+    tier: l.tier,
+    score: l.score,
+    status: l.status,
+    volumeEstimadoVagas: l.volumeEstimadoVagas,
+    totalDecisores: dados.contatos.filter((c) => c.leadId === l.id).length,
+    ganchoAbordagem: l.ganchoAbordagem || null,
+    dono: l.dono || null,
+    donoNome: nomeDono(dados, l.dono),
+    atualizadoEm: l.atualizadoEm,
+  });
+
+  json(res, 200, {
+    escopo: papeis.podeVerTodosLeads(contexto.usuario) ? 'equipe' : 'proprio',
+    colunas: colunas.map((status) => {
+      const doStatus = leads
+        .filter((l) => l.status === status)
+        .sort((a, b) => (b.score || 0) - (a.score || 0));
+      return { status, total: doStatus.length, cartoes: doStatus.map(cartao) };
+    }),
+    descartados: leads.filter((l) => l.status === 'descartado').length,
+  });
+}
+
+/** Reatribui o lead a outro SDR. Ato de gestao: gestor e admin apenas. */
+async function reatribuirLead(req, res, contexto) {
+  if (!papeis.podeReatribuirLead(contexto.usuario)) {
+    return erro(res, 403, 'Apenas gestor ou administrador pode reatribuir lead.');
+  }
+
   const dados = db.estado();
   const lead = dados.leads.find((l) => l.id === contexto.parametros.id);
   if (!lead) return erro(res, 404, 'Lead nao encontrado.');
+
+  const corpo = await lerJson(req);
+  const donoId = corpo.dono === null ? null : String(corpo.dono || '');
+
+  if (donoId) {
+    const novoDono = dados.usuarios.find((u) => u.id === donoId);
+    if (!novoDono) return erro(res, 404, 'Usuario de destino nao encontrado.');
+    if (novoDono.ativo === false) return erro(res, 400, 'Nao da para atribuir lead a conta desativada.');
+    lead.dono = novoDono.id;
+  } else {
+    lead.dono = null;
+  }
+
+  lead.atualizadoEm = new Date().toISOString();
+  db.registrarAuditoria({
+    tipo: 'lead_reatribuido',
+    usuarioId: contexto.usuario.id,
+    leadId: lead.id,
+    paraId: lead.dono,
+  });
+  await db.salvar();
+
+  json(res, 200, { ok: true, dono: lead.dono, donoNome: nomeDono(dados, lead.dono) });
+}
+
+function obterLead(req, res, contexto) {
+  const escopo = leadNoEscopo(contexto);
+  if (escopo.erro) return erro(res, escopo.erro, escopo.mensagem);
+  const { lead, dados } = escopo;
+
   const contatos = dados.contatos.filter((c) => c.leadId === lead.id);
-  json(res, 200, { lead, contatos });
+  const atividades = (dados.atividades || [])
+    .filter((a) => a.leadId === lead.id)
+    .sort((a, b) => String(b.em).localeCompare(String(a.em)));
+
+  json(res, 200, {
+    lead: { ...lead, donoNome: nomeDono(dados, lead.dono) },
+    contatos,
+    atividades,
+  });
 }
 
 async function atualizarLead(req, res, contexto) {
-  const dados = db.estado();
-  const lead = dados.leads.find((l) => l.id === contexto.parametros.id);
-  if (!lead) return erro(res, 404, 'Lead nao encontrado.');
+  const escopo = leadNoEscopo(contexto);
+  if (escopo.erro) return erro(res, escopo.erro, escopo.mensagem);
+  const { lead } = escopo;
 
   const corpo = await lerJson(req);
 
@@ -148,11 +299,13 @@ async function atualizarLead(req, res, contexto) {
 }
 
 async function removerLead(req, res, contexto) {
-  const dados = db.estado();
-  const antes = dados.leads.length;
+  const escopo = leadNoEscopo(contexto);
+  if (escopo.erro) return erro(res, escopo.erro, escopo.mensagem);
+  const dados = escopo.dados;
+
   dados.leads = dados.leads.filter((l) => l.id !== contexto.parametros.id);
-  if (dados.leads.length === antes) return erro(res, 404, 'Lead nao encontrado.');
   dados.contatos = dados.contatos.filter((c) => c.leadId !== contexto.parametros.id);
+  dados.atividades = (dados.atividades || []).filter((a) => a.leadId !== contexto.parametros.id);
   db.registrarAuditoria({ tipo: 'lead_removido', usuarioId: contexto.usuario.id, leadId: contexto.parametros.id });
   await db.salvar();
   json(res, 200, { ok: true });
@@ -165,23 +318,25 @@ function csvEscapar(valor) {
   return `"${seguro.replace(/"/g, '""')}"`;
 }
 
-function exportarCsv(req, res) {
+function exportarCsv(req, res, contexto) {
   const dados = db.estado();
   const colunas = [
     'empresa', 'tier', 'score', 'status', 'confianca', 'cidade', 'uf', 'site',
-    'segmento', 'vagas_estimadas', 'porque_claves', 'gancho', 'decisor_nome',
+    'segmento', 'vagas_estimadas', 'dono', 'porque_claves', 'gancho', 'decisor_nome',
     'decisor_cargo', 'decisor_linkedin', 'decisor_fonte', 'decisor_status_atual',
   ];
   const linhas = [colunas.join(',')];
 
+  // A exportacao respeita o escopo: SDR leva o proprio kanban, nao a base toda.
   for (const lead of dados.leads) {
     if (lead.status === 'descartado') continue;
+    if (!visivelPara(lead, contexto.usuario)) continue;
     const contatos = dados.contatos.filter((c) => c.leadId === lead.id);
     const base = [
       lead.empresa?.nome, lead.tier, lead.score, lead.status, lead.confianca,
       lead.empresa?.cidade, lead.empresa?.uf, lead.empresa?.site,
-      lead.empresa?.segmento, lead.volumeEstimadoVagas, lead.porqueClaves,
-      lead.ganchoAbordagem,
+      lead.empresa?.segmento, lead.volumeEstimadoVagas, nomeDono(dados, lead.dono),
+      lead.porqueClaves, lead.ganchoAbordagem,
     ];
     if (!contatos.length) {
       linhas.push([...base, '', '', '', '', ''].map(csvEscapar).join(','));
@@ -206,9 +361,127 @@ function exportarCsv(req, res) {
   res.end(corpo);
 }
 
+// -------------------------------------------------------- decisores/LinkedIn
+
+/**
+ * Busca decisores da empresa do lead em perfis publicos do LinkedIn.
+ * NAO grava: devolve os candidatos para a pessoa escolher. Gravar automatico
+ * encheria a base de perfil errado — o julgamento fica com quem vai ligar.
+ */
+async function buscarDecisores(req, res, contexto) {
+  const escopo = leadNoEscopo(contexto);
+  if (escopo.erro) return erro(res, escopo.erro, escopo.mensagem);
+  const { lead } = escopo;
+
+  const controle = limites.consumir(
+    `linkedin:${contexto.usuario.id}`,
+    limites.REGRAS.testeLlm.limite,
+    limites.REGRAS.testeLlm.janelaMs
+  );
+  if (!controle.permitido) {
+    return erro(res, 429, 'Muitas buscas de decisor seguidas. Aguarde alguns minutos.');
+  }
+
+  const params = contexto.url.searchParams;
+  const cargosParam = params.get('cargos');
+  const cargos = cargosParam
+    ? cargosParam.split(',').map((c) => c.trim()).filter(Boolean).slice(0, 6)
+    : [];
+
+  try {
+    const resultado = await linkedin.buscarPessoas({
+      empresa: lead.empresa?.nome,
+      cargos,
+      regiao: lead.empresa?.uf || lead.empresa?.cidade || null,
+    });
+    // Marca quem ja esta na base para a UI nao oferecer duplicata.
+    const jaSalvos = new Set(
+      escopo.dados.contatos
+        .filter((c) => c.leadId === lead.id && c.linkedinUrl)
+        .map((c) => c.linkedinUrl)
+    );
+    json(res, 200, {
+      ...resultado,
+      pessoas: resultado.pessoas.map((p) => ({ ...p, jaSalvo: jaSalvos.has(p.linkedinUrl) })),
+    });
+  } catch (falha) {
+    erro(res, 400, falha.message);
+  }
+}
+
+/** Grava um decisor escolhido a mao (a partir da busca ou digitado). */
+async function criarContato(req, res, contexto) {
+  const escopo = leadNoEscopo(contexto);
+  if (escopo.erro) return erro(res, escopo.erro, escopo.mensagem);
+  const { lead, dados } = escopo;
+
+  const corpo = await lerJson(req);
+  const nomeCompleto = texto(corpo.nomeCompleto, { campo: 'nomeCompleto', obrigatorio: true, max: 200 });
+  const cargo = texto(corpo.cargo, { campo: 'cargo', obrigatorio: true, max: 200 });
+
+  const linkedinUrl = texto(corpo.linkedinUrl, { campo: 'linkedinUrl', max: 400 }) || null;
+  if (linkedinUrl && dados.contatos.some((c) => c.leadId === lead.id && c.linkedinUrl === linkedinUrl)) {
+    return erro(res, 409, 'Este perfil ja esta salvo neste lead.');
+  }
+
+  const contato = {
+    id: novoId('ctt'),
+    leadId: lead.id,
+    nomeCompleto,
+    cargo,
+    area: umDe(corpo.area, ['operacoes_medicas', 'medico', 'rh_gente', 'executivo_ceo', 'expansao', 'unidade', 'outro'], 'outro'),
+    senioridade: umDe(corpo.senioridade, ['c_level', 'diretoria', 'gerencia', 'coordenacao', 'outro'], 'outro'),
+    linkedinUrl,
+    emailPublico: texto(corpo.emailPublico, { campo: 'emailPublico', max: 200 }) || null,
+    telefonePublico: texto(corpo.telefonePublico, { campo: 'telefonePublico', max: 60 }) || null,
+    fonteUrl: texto(corpo.fonteUrl, { campo: 'fonteUrl', max: 400 }) || linkedinUrl,
+    fonteTitulo: texto(corpo.fonteTitulo, { campo: 'fonteTitulo', max: 300 }) || null,
+    dataDaEvidencia: texto(corpo.dataDaEvidencia, { campo: 'dataDaEvidencia', max: 20 }) || null,
+    statusAtual: umDe(
+      corpo.statusAtual,
+      ['confirmado_atual', 'provavel_atual', 'nao_confirmado', 'saiu_da_empresa'],
+      'nao_confirmado'
+    ),
+    trechoEvidencia: texto(corpo.trechoEvidencia, { campo: 'trechoEvidencia', max: 400 }) || null,
+    confianca: umDe(corpo.confianca, ['alta', 'media', 'baixa'], 'media'),
+    criadoEm: new Date().toISOString(),
+    criadoPor: contexto.usuario.id,
+    origem: 'manual',
+  };
+
+  // Coerente com a pesquisa automatica: quem saiu da empresa nao entra na base.
+  if (contato.statusAtual === 'saiu_da_empresa') {
+    return erro(res, 400, 'Nao gravamos contato marcado como "saiu da empresa".');
+  }
+
+  dados.contatos.push(contato);
+  lead.atualizadoEm = contato.criadoEm;
+  await db.salvar();
+
+  json(res, 201, { contato });
+}
+
+async function removerContato(req, res, contexto) {
+  const dados = db.estado();
+  const contato = dados.contatos.find((c) => c.id === contexto.parametros.contatoId);
+  if (!contato) return erro(res, 404, 'Contato nao encontrado.');
+
+  const lead = dados.leads.find((l) => l.id === contato.leadId);
+  if (!lead || !visivelPara(lead, contexto.usuario)) {
+    return erro(res, 404, 'Contato nao encontrado.');
+  }
+
+  dados.contatos = dados.contatos.filter((c) => c.id !== contato.id);
+  await db.salvar();
+  json(res, 200, { ok: true });
+}
+
 // ------------------------------------------------------------ configuracoes
 
-function listarConfiguracoes(req, res) {
+function listarConfiguracoes(req, res, contexto) {
+  if (!papeis.podeConfigurarIntegracoes(contexto.usuario)) {
+    return erro(res, 403, 'Apenas o administrador acessa credenciais e integracoes.');
+  }
   const integracoes = db.estado().configuracoes.integracoes || {};
   json(res, 200, {
     credenciais: llm.listarCredenciais(),
@@ -378,8 +651,14 @@ function listarExecucoes(req, res) {
 }
 
 module.exports = {
+  leadNoEscopo,
   metadados,
   listarLeads,
+  kanban,
+  reatribuirLead,
+  buscarDecisores,
+  criarContato,
+  removerContato,
   obterLead,
   atualizarLead,
   removerLead,

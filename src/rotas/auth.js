@@ -23,6 +23,7 @@ async function bootstrapAdmin() {
     email: config.admin.email,
     nome: 'Administrador',
     papel: 'admin',
+    ativo: true,
     senhaHash: hashSenha(config.admin.senha),
     criadoEm: new Date().toISOString(),
     ultimoLogin: null,
@@ -34,7 +35,13 @@ async function bootstrapAdmin() {
 }
 
 function usuarioPublico(usuario) {
-  return { id: usuario.id, email: usuario.email, nome: usuario.nome, papel: usuario.papel };
+  return {
+    id: usuario.id,
+    email: usuario.email,
+    nome: usuario.nome,
+    papel: usuario.papel,
+    trocaSenhaObrigatoria: usuario.trocaSenhaObrigatoria === true,
+  };
 }
 
 async function login(req, res) {
@@ -72,6 +79,15 @@ async function login(req, res) {
     db.registrarAuditoria({ tipo: 'login_falhou', email, ip });
     await db.salvar();
     return erro(res, 401, 'E-mail ou senha invalidos.');
+  }
+
+  // Conta desativada nao entra. Mensagem propria: aqui a senha ja foi validada,
+  // entao nao ha o que proteger, e o usuario precisa saber que deve falar com o
+  // gestor em vez de ficar tentando a senha.
+  if (usuario.ativo === false) {
+    db.registrarAuditoria({ tipo: 'login_conta_desativada', usuarioId: usuario.id, ip });
+    await db.salvar();
+    return erro(res, 403, 'Esta conta esta desativada. Procure o gestor ou o administrador.');
   }
 
   limites.liberar(`login:ip:${ip}`);
@@ -116,7 +132,12 @@ async function trocarSenha(req, res, contexto) {
     return erro(res, 400, 'A nova senha precisa ter no minimo 12 caracteres.');
   }
 
+  if (nova === atual) {
+    return erro(res, 400, 'A nova senha precisa ser diferente da atual.');
+  }
+
   contexto.usuario.senhaHash = hashSenha(nova);
+  contexto.usuario.trocaSenhaObrigatoria = false;
   db.registrarAuditoria({ tipo: 'senha_alterada', usuarioId: contexto.usuario.id });
   await db.salvar();
 
