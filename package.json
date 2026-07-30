@@ -12,7 +12,8 @@
     "dev": "node --watch server.js",
     "gerar-chave": "node scripts/gerar-chave.js",
     "criar-usuario": "node scripts/criar-usuario.js",
-    "audit": "npm audit --omit=dev"
+    "audit": "npm audit --omit=dev",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.72.0"
