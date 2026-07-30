@@ -479,8 +479,18 @@ async function removerContato(req, res, contexto) {
 // ------------------------------------------------------------ configuracoes
 
 function listarConfiguracoes(req, res, contexto) {
+  // Nao-admin recebe 200 com o conteudo sensivel vazio, em vez de 403: esta
+  // rota e chamada no boot do app, e negar aqui derrubaria a inicializacao
+  // inteira para SDR e gestor — que ainda precisam da tela para trocar a
+  // propria senha.
   if (!papeis.podeConfigurarIntegracoes(contexto.usuario)) {
-    return erro(res, 403, 'Apenas o administrador acessa credenciais e integracoes.');
+    return json(res, 200, {
+      credenciais: [],
+      provedores: llm.listarProvedores(),
+      buscaWeb: null,
+      chaveMestraEfemera: false,
+      somenteLeitura: true,
+    });
   }
   const integracoes = db.estado().configuracoes.integracoes || {};
   json(res, 200, {

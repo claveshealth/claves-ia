@@ -142,11 +142,16 @@ $('#abas').addEventListener('click', (evento) => {
   if (!botao) return;
   const alvo = botao.dataset.aba;
   $$('.aba').forEach((b) => b.classList.toggle('ativa', b === botao));
-  for (const nome of ['pipeline', 'buscar', 'icp', 'config']) {
-    $(`#painel-${nome}`).hidden = nome !== alvo;
+  // A lista de paineis sai do proprio DOM: aba nova passa a funcionar sem
+  // precisar lembrar de atualizar um array aqui.
+  for (const botaoAba of $$('.aba')) {
+    const painel = $(`#painel-${botaoAba.dataset.aba}`);
+    if (painel) painel.hidden = botaoAba.dataset.aba !== alvo;
   }
   if (alvo === 'pipeline') carregarLeads();
   if (alvo === 'config') carregarConfiguracoes();
+  if (alvo === 'kanban') carregarKanban();
+  if (alvo === 'equipe') carregarEquipe();
 });
 
 // ---------------------------------------------------------------- pipeline
@@ -991,3 +996,628 @@ async function iniciarApp() {
     mostrarLogin();
   }
 })();
+
+// ==========================================================================
+// KANBAN — o lead vai para o quadro de quem apertou o botao
+// ==========================================================================
+
+const ROTULO_STATUS = {
+  novo: 'Novo',
+  qualificado: 'Qualificado',
+  contatado: 'Contatado',
+  reuniao: 'Reunião',
+  proposta: 'Proposta',
+  ganho: 'Ganho',
+  perdido: 'Perdido',
+};
+
+function cartaoKanban(cartao) {
+  const no = el('article', {
+    classe: `cartao-kanban tier-${cartao.tier || 0}`,
+    draggable: 'true',
+    dados: { leadId: cartao.id, status: cartao.status },
+    onclick: () => abrirGaveta(cartao.id),
+  }, [
+    el('div', { classe: 'cartao-kanban-topo' }, [
+      el('strong', { texto: cartao.empresa || 'Sem nome' }),
+      el('span', { classe: `pontuacao ${classePontuacao(cartao.score)}`, texto: String(cartao.score ?? '—') }),
+    ]),
+    el('div', { classe: 'cartao-kanban-meta' }, [
+      cartao.tier ? el('span', { classe: 'etiqueta', texto: `Tier ${cartao.tier}` }) : null,
+      cartao.cidade ? el('span', { classe: 'secundario', texto: `${cartao.cidade}${cartao.uf ? '/' + cartao.uf : ''}` }) : null,
+      cartao.volumeEstimadoVagas
+        ? el('span', { classe: 'secundario', texto: `${cartao.volumeEstimadoVagas} vagas` })
+        : null,
+      el('span', { classe: 'secundario', texto: `${cartao.totalDecisores} decisor(es)` }),
+    ]),
+    // Dono so aparece para quem ve o pipeline da equipe; no kanban proprio
+    // seria ruido, ja que todo cartao e do mesmo dono.
+    estado.meta?.permissoes?.verTodosLeads && cartao.donoNome
+      ? el('div', { classe: 'cartao-kanban-dono', texto: cartao.donoNome })
+      : null,
+  ]);
+
+  no.addEventListener('dragstart', (evento) => {
+    evento.dataTransfer.setData('text/plain', cartao.id);
+    evento.dataTransfer.effectAllowed = 'move';
+    no.classList.add('arrastando');
+  });
+  no.addEventListener('dragend', () => no.classList.remove('arrastando'));
+
+  return no;
+}
+
+async function moverLead(leadId, novoStatus) {
+  try {
+    await api(`/api/leads/${encodeURIComponent(leadId)}`, {
+      method: 'PATCH',
+      body: { status: novoStatus },
+    });
+    toast(`Movido para ${ROTULO_STATUS[novoStatus] || novoStatus}.`, 'ok');
+    await carregarKanban();
+  } catch (falha) {
+    toast(falha.message, 'erro');
+    await carregarKanban(); // devolve o cartao ao lugar
+  }
+}
+
+function colunaKanban(coluna) {
+  const lista = el('div', { classe: 'coluna-corpo' },
+    coluna.cartoes.map(cartaoKanban));
+
+  const no = el('section', { classe: 'coluna', dados: { status: coluna.status } }, [
+    el('header', { classe: 'coluna-topo' }, [
+      el('span', { texto: ROTULO_STATUS[coluna.status] || coluna.status }),
+      el('span', { classe: 'coluna-contador', texto: String(coluna.total) }),
+    ]),
+    lista,
+  ]);
+
+  no.addEventListener('dragover', (evento) => {
+    evento.preventDefault();
+    evento.dataTransfer.dropEffect = 'move';
+    no.classList.add('coluna-alvo');
+  });
+  no.addEventListener('dragleave', () => no.classList.remove('coluna-alvo'));
+  no.addEventListener('drop', (evento) => {
+    evento.preventDefault();
+    no.classList.remove('coluna-alvo');
+    const leadId = evento.dataTransfer.getData('text/plain');
+    if (!leadId) return;
+    const atual = document.querySelector(`[data-lead-id="${CSS.escape(leadId)}"]`);
+    if (atual?.dataset.status === coluna.status) return; // soltou na mesma coluna
+    moverLead(leadId, coluna.status);
+  });
+
+  return no;
+}
+
+async function carregarKanban() {
+  const filtro = $('#kanban-filtro-dono')?.value || '';
+  const consulta = filtro ? `?dono=${encodeURIComponent(filtro)}` : '';
+
+  let dados;
+  try {
+    dados = await api(`/api/kanban${consulta}`);
+  } catch (falha) {
+    toast(falha.message, 'erro');
+    return;
+  }
+
+  const quadro = $('#quadro-kanban');
+  limpar(quadro);
+  for (const coluna of dados.colunas) quadro.appendChild(colunaKanban(coluna));
+
+  const total = dados.colunas.reduce((soma, c) => soma + c.total, 0);
+  $('#kanban-vazio').hidden = total > 0;
+
+  $('#kanban-titulo').textContent = dados.escopo === 'equipe' ? 'Pipeline da equipe' : 'Meu kanban';
+  $('#kanban-escopo').textContent =
+    dados.escopo === 'equipe'
+      ? 'Você vê os leads de toda a equipe. Arraste para mudar o estágio.'
+      : 'Só os leads que as suas pesquisas encontraram. Arraste para mudar o estágio.';
+}
+
+$('#btn-recarregar-kanban').addEventListener('click', carregarKanban);
+$('#kanban-filtro-dono').addEventListener('change', carregarKanban);
+
+// ==========================================================================
+// EQUIPE — cadastro de gestor e SDR
+// ==========================================================================
+
+function linhaEquipe(pessoa) {
+  const souEu = pessoa.id === estado.usuario.id;
+  const acoes = el('div', { classe: 'linha-botoes' });
+
+  if (!souEu) {
+    acoes.appendChild(el('button', {
+      classe: 'btn btn-secundario btn-mini',
+      texto: pessoa.ativo ? 'Desativar' : 'Reativar',
+      onclick: async () => {
+        try {
+          await api(`/api/usuarios/${encodeURIComponent(pessoa.id)}`, {
+            method: 'PATCH',
+            body: { ativo: !pessoa.ativo },
+          });
+          toast(pessoa.ativo ? 'Conta desativada.' : 'Conta reativada.', 'ok');
+          await carregarEquipe();
+        } catch (falha) {
+          toast(falha.message, 'erro');
+        }
+      },
+    }));
+
+    acoes.appendChild(el('button', {
+      classe: 'btn btn-secundario btn-mini',
+      texto: 'Redefinir senha',
+      onclick: async () => {
+        const nova = prompt(`Nova senha para ${pessoa.nome} (mín. 12 caracteres):`);
+        if (!nova) return;
+        try {
+          const r = await api(`/api/usuarios/${encodeURIComponent(pessoa.id)}/senha`, {
+            method: 'POST',
+            body: { novaSenha: nova },
+          });
+          toast(r.mensagem, 'ok');
+        } catch (falha) {
+          toast(falha.message, 'erro');
+        }
+      },
+    }));
+
+    if (pessoa.leadsAtivos > 0 && estado.meta?.permissoes?.reatribuirLead) {
+      acoes.appendChild(el('button', {
+        classe: 'btn btn-secundario btn-mini',
+        texto: `Transferir ${pessoa.leadsAtivos} lead(s)`,
+        onclick: async () => {
+          const destinos = estado.equipe.filter((u) => u.id !== pessoa.id && u.ativo);
+          if (!destinos.length) return toast('Não há outra conta ativa para receber.', 'erro');
+          const nomes = destinos.map((d, i) => `${i + 1}) ${d.nome}`).join('\n');
+          const escolha = prompt(`Transferir a carteira de ${pessoa.nome} para:\n${nomes}\n\nDigite o número:`);
+          const destino = destinos[Number(escolha) - 1];
+          if (!destino) return;
+          try {
+            const r = await api(`/api/usuarios/${encodeURIComponent(pessoa.id)}/transferir-leads`, {
+              method: 'POST',
+              body: { paraUsuarioId: destino.id },
+            });
+            toast(r.mensagem, 'ok');
+            await carregarEquipe();
+            await carregarKanban();
+          } catch (falha) {
+            toast(falha.message, 'erro');
+          }
+        },
+      }));
+    }
+  }
+
+  return el('div', { classe: `linha-equipe ${pessoa.ativo ? '' : 'inativa'}` }, [
+    el('div', {}, [
+      el('strong', { texto: pessoa.nome }),
+      souEu ? el('span', { classe: 'etiqueta', texto: 'você' }) : null,
+      pessoa.ativo ? null : el('span', { classe: 'etiqueta etiqueta-aviso', texto: 'desativado' }),
+      el('div', { classe: 'secundario', texto: pessoa.email }),
+      el('div', { classe: 'secundario', texto: `${pessoa.papel} · ${pessoa.leadsAtivos} lead(s) · último acesso: ${formatarData(pessoa.ultimoLogin)}` }),
+    ]),
+    acoes,
+  ]);
+}
+
+async function carregarEquipe() {
+  if (!estado.meta?.permissoes?.gerenciarUsuarios) return;
+  try {
+    const dados = await api('/api/usuarios');
+    estado.equipe = dados.usuarios;
+
+    const lista = $('#lista-equipe');
+    limpar(lista);
+    for (const pessoa of dados.usuarios) lista.appendChild(linhaEquipe(pessoa));
+
+    // Filtro de dono no kanban, para o gestor focar um SDR.
+    const seletor = $('#kanban-filtro-dono');
+    const anterior = seletor.value;
+    limpar(seletor);
+    seletor.appendChild(el('option', { value: '', texto: 'Toda a equipe' }));
+    for (const pessoa of dados.usuarios) {
+      seletor.appendChild(el('option', { value: pessoa.id, texto: pessoa.nome }));
+    }
+    seletor.appendChild(el('option', { value: 'sem_dono', texto: '— sem dono —' }));
+    seletor.value = anterior;
+  } catch (falha) {
+    toast(falha.message, 'erro');
+  }
+}
+
+$('#btn-criar-usuario').addEventListener('click', async () => {
+  mostrarAlerta('#eq-alerta', '');
+  try {
+    await api('/api/usuarios', {
+      method: 'POST',
+      body: {
+        nome: $('#eq-nome').value,
+        email: $('#eq-email').value,
+        papel: $('#eq-papel').value,
+        senha: $('#eq-senha').value,
+      },
+    });
+    $('#eq-nome').value = '';
+    $('#eq-email').value = '';
+    $('#eq-senha').value = '';
+    mostrarAlerta('#eq-alerta', 'Pessoa cadastrada. Ela precisa trocar a senha no primeiro acesso.', 'ok');
+    await carregarEquipe();
+  } catch (falha) {
+    mostrarAlerta('#eq-alerta', falha.message);
+  }
+});
+
+$('#eq-papel').addEventListener('change', () => {
+  const descricao = estado.meta?.descricaoPapeis?.[$('#eq-papel').value] || '';
+  $('#eq-papel-descricao').textContent = descricao;
+});
+
+// ==========================================================================
+// E-MAIL — configuracao SMTP
+// ==========================================================================
+
+async function carregarConfigEmail() {
+  if (!estado.meta?.permissoes?.configurarIntegracoes) return;
+  try {
+    const { email } = await api('/api/config/email');
+    if (!email) return;
+    $('#cfg-email-host').value = email.host || '';
+    $('#cfg-email-porta').value = String(email.porta || 587);
+    $('#cfg-email-usuario').value = email.usuario || '';
+    $('#cfg-email-remetente').value = email.remetenteEmail || '';
+    $('#cfg-email-nome').value = email.remetenteNome || '';
+    $('#cfg-email-senha').placeholder = email.senhaMascarada
+      ? `salva (${email.senhaMascarada}) — deixe em branco para manter`
+      : 'deixe em branco para manter';
+  } catch {
+    /* sem permissao ou sem configuracao: silencioso */
+  }
+}
+
+$('#btn-salvar-email').addEventListener('click', async () => {
+  mostrarAlerta('#email-alerta', '');
+  try {
+    await api('/api/config/email', {
+      method: 'POST',
+      body: {
+        host: $('#cfg-email-host').value,
+        porta: Number($('#cfg-email-porta').value),
+        usuario: $('#cfg-email-usuario').value,
+        senha: $('#cfg-email-senha').value,
+        remetenteEmail: $('#cfg-email-remetente').value,
+        remetenteNome: $('#cfg-email-nome').value,
+      },
+    });
+    $('#cfg-email-senha').value = '';
+    mostrarAlerta('#email-alerta', 'Configuração salva. Use "Testar conexão" antes de enviar.', 'ok');
+    estado.meta = await api('/api/meta');
+  } catch (falha) {
+    mostrarAlerta('#email-alerta', falha.message);
+  }
+});
+
+$('#btn-testar-email').addEventListener('click', async () => {
+  mostrarAlerta('#email-alerta', 'Testando...', 'ok');
+  try {
+    const r = await api('/api/config/email/testar', { method: 'POST' });
+    mostrarAlerta('#email-alerta', r.mensagem, 'ok');
+  } catch (falha) {
+    mostrarAlerta('#email-alerta', falha.message);
+  }
+});
+
+$('#btn-remover-email').addEventListener('click', async () => {
+  if (!confirm('Remover a configuração de e-mail?')) return;
+  try {
+    await api('/api/config/email', { method: 'DELETE' });
+    for (const id of ['#cfg-email-host', '#cfg-email-usuario', '#cfg-email-senha', '#cfg-email-remetente', '#cfg-email-nome']) {
+      $(id).value = '';
+    }
+    mostrarAlerta('#email-alerta', 'Configuração removida.', 'ok');
+    estado.meta = await api('/api/meta');
+  } catch (falha) {
+    mostrarAlerta('#email-alerta', falha.message);
+  }
+});
+
+// ==========================================================================
+// GAVETA DO LEAD — decisores via LinkedIn, e-mail e historico
+// ==========================================================================
+
+const ROTULO_CONFIANCA = {
+  alta: ['etiqueta-ok', 'confiança alta'],
+  media: ['etiqueta-aviso', 'confiança média'],
+  baixa: ['etiqueta-risco', 'confiança baixa'],
+};
+
+function perfilLinkedin(pessoa, leadId, aoSalvar) {
+  const [classe, rotulo] = ROTULO_CONFIANCA[pessoa.confianca] || ROTULO_CONFIANCA.baixa;
+
+  const botao = pessoa.jaSalvo
+    ? el('span', { classe: 'etiqueta etiqueta-ok', texto: 'já salvo' })
+    : el('button', {
+        classe: 'btn btn-secundario btn-mini',
+        texto: 'Salvar decisor',
+        onclick: async (evento) => {
+          evento.target.disabled = true;
+          try {
+            await api(`/api/leads/${encodeURIComponent(leadId)}/contatos`, {
+              method: 'POST',
+              body: {
+                nomeCompleto: pessoa.nomeCompleto,
+                cargo: pessoa.cargo || 'não informado',
+                linkedinUrl: pessoa.linkedinUrl,
+                fonteUrl: pessoa.fonteUrl,
+                fonteTitulo: pessoa.fonteTitulo,
+                trechoEvidencia: pessoa.trechoEvidencia,
+                statusAtual: pessoa.statusAtual,
+                confianca: pessoa.confianca,
+              },
+            });
+            toast(`${pessoa.nomeCompleto} salvo no lead.`, 'ok');
+            aoSalvar();
+          } catch (falha) {
+            evento.target.disabled = false;
+            toast(falha.message, 'erro');
+          }
+        },
+      });
+
+  return el('div', { classe: 'perfil-linkedin' }, [
+    el('div', {}, [
+      el('strong', { texto: pessoa.nomeCompleto }),
+      el('span', { classe: `etiqueta ${classe}`, texto: rotulo }),
+      pessoa.cargo ? el('div', { texto: pessoa.cargo }) : null,
+      pessoa.empresaNoTitulo ? el('div', { classe: 'secundario', texto: pessoa.empresaNoTitulo }) : null,
+      el('div', { classe: 'secundario', texto: pessoa.motivoConfianca }),
+      linkExterno(pessoa.linkedinUrl, 'ver perfil'),
+    ]),
+    botao,
+  ]);
+}
+
+function secaoLinkedin(lead, recarregar) {
+  const resultados = el('div', { classe: 'lista-perfis' });
+
+  const buscar = el('button', {
+    classe: 'btn btn-secundario btn-bloco',
+    texto: 'Buscar decisores no LinkedIn',
+    onclick: async (evento) => {
+      evento.target.disabled = true;
+      evento.target.textContent = 'Buscando...';
+      limpar(resultados);
+      try {
+        const dados = await api(`/api/leads/${encodeURIComponent(lead.id)}/decisores/linkedin`);
+        resultados.appendChild(el('p', { classe: 'ajuda ajuda-mini', texto: dados.aviso }));
+        for (const pessoa of dados.pessoas) {
+          resultados.appendChild(perfilLinkedin(pessoa, lead.id, recarregar));
+        }
+        if (!dados.pessoas.length) {
+          resultados.appendChild(el('p', { classe: 'secundario', texto: 'Nenhum perfil público indexado.' }));
+        }
+      } catch (falha) {
+        resultados.appendChild(el('p', { classe: 'alerta alerta-erro', texto: falha.message }));
+      } finally {
+        evento.target.disabled = false;
+        evento.target.textContent = 'Buscar decisores no LinkedIn';
+      }
+    },
+  });
+
+  return bloco('Decisores no LinkedIn', [
+    el('p', {
+      classe: 'ajuda ajuda-mini',
+      texto:
+        'Consulta o índice público de busca restrito a linkedin.com/in. Nada é gravado sem você escolher — confirme o cargo antes de usar numa abordagem.',
+    }),
+    buscar,
+    resultados,
+  ]);
+}
+
+function secaoEmail(lead, contatos, recarregar) {
+  const comEmail = contatos.filter((c) => c.emailPublico);
+
+  if (!estado.meta?.emailConfigurado) {
+    return bloco('Enviar e-mail', [
+      el('p', { classe: 'ajuda', texto: 'Nenhum servidor SMTP configurado. Peça ao administrador para cadastrar em Configurações.' }),
+    ]);
+  }
+  if (!comEmail.length) {
+    return bloco('Enviar e-mail', [
+      el('p', {
+        classe: 'ajuda',
+        texto:
+          'Nenhum decisor deste lead tem e-mail público registrado. Só enviamos para endereço que a própria empresa divulgou — o CRM nunca deduz e-mail.',
+      }),
+    ]);
+  }
+
+  const seletor = el('select', { classe: 'campo' },
+    comEmail.map((c) => el('option', { value: c.id, texto: `${c.nomeCompleto} — ${c.emailPublico}` })));
+  const assunto = el('input', { classe: 'campo', type: 'text', placeholder: 'Assunto' });
+  const corpo = el('textarea', { classe: 'campo', rows: '8', placeholder: 'Escreva a abordagem...' });
+
+  if (lead.ganchoAbordagem) {
+    assunto.value = `Claves Health — ${lead.empresa?.nome || ''}`.trim();
+    corpo.value = `${lead.ganchoAbordagem}\n\n`;
+  }
+
+  const alerta = el('p', { classe: 'alerta', hidden: 'hidden' });
+
+  return bloco('Enviar e-mail', [
+    el('p', {
+      classe: 'ajuda ajuda-mini',
+      texto: 'Sai da conta da empresa com Reply-To no seu e-mail — a resposta cai na sua caixa. O envio vira atividade e move o lead para "contatado".',
+    }),
+    seletor,
+    assunto,
+    corpo,
+    el('button', {
+      classe: 'btn btn-primario btn-bloco',
+      texto: 'Enviar',
+      onclick: async (evento) => {
+        alerta.hidden = true;
+        evento.target.disabled = true;
+        evento.target.textContent = 'Enviando...';
+        try {
+          await api(`/api/leads/${encodeURIComponent(lead.id)}/email`, {
+            method: 'POST',
+            body: { contatoId: seletor.value, assunto: assunto.value, corpo: corpo.value },
+          });
+          toast('E-mail enviado e registrado.', 'ok');
+          recarregar();
+          carregarKanban();
+        } catch (falha) {
+          alerta.hidden = false;
+          alerta.className = 'alerta alerta-erro';
+          alerta.textContent = falha.message;
+        } finally {
+          evento.target.disabled = false;
+          evento.target.textContent = 'Enviar';
+        }
+      },
+    }),
+    alerta,
+  ]);
+}
+
+function secaoAtividades(lead, atividades, recarregar) {
+  const tipo = el('select', { classe: 'campo campo-curto' }, [
+    el('option', { value: 'ligacao', texto: 'Ligação' }),
+    el('option', { value: 'reuniao', texto: 'Reunião' }),
+    el('option', { value: 'linkedin', texto: 'LinkedIn' }),
+    el('option', { value: 'whatsapp', texto: 'WhatsApp' }),
+    el('option', { value: 'nota', texto: 'Nota' }),
+  ]);
+  const resumo = el('input', { classe: 'campo', type: 'text', placeholder: 'O que aconteceu?' });
+
+  const historico = atividades.length
+    ? atividades.map((a) =>
+        el('div', { classe: 'atividade' }, [
+          el('div', {}, [
+            el('span', { classe: 'etiqueta', texto: a.tipo }),
+            el('strong', { texto: a.assunto || a.resumo?.slice(0, 80) || '' }),
+          ]),
+          el('div', { classe: 'secundario', texto: `${a.usuarioNome || '—'} · ${formatarData(a.em)}` }),
+          a.assunto && a.resumo ? el('div', { classe: 'secundario', texto: a.resumo.slice(0, 300) }) : null,
+        ])
+      )
+    : [el('p', { classe: 'secundario', texto: 'Nenhum contato registrado ainda.' })];
+
+  return bloco('Histórico de contato', [
+    ...historico,
+    el('div', { classe: 'linha-botoes' }, [
+      tipo,
+      resumo,
+      el('button', {
+        classe: 'btn btn-secundario',
+        texto: 'Registrar',
+        onclick: async () => {
+          if (!resumo.value.trim()) return toast('Descreva o que aconteceu.', 'erro');
+          try {
+            await api(`/api/leads/${encodeURIComponent(lead.id)}/atividades`, {
+              method: 'POST',
+              body: { tipo: tipo.value, resumo: resumo.value },
+            });
+            toast('Atividade registrada.', 'ok');
+            recarregar();
+            carregarKanban();
+          } catch (falha) {
+            toast(falha.message, 'erro');
+          }
+        },
+      }),
+    ]),
+  ]);
+}
+
+/**
+ * Estende a gaveta existente em vez de reescreve-la: a montagem original do
+ * dossie continua responsavel pelo que ja mostrava, e aqui so acrescentamos as
+ * acoes novas — logo antes do botao de excluir, que deve seguir por ultimo.
+ */
+const abrirGavetaBase = abrirGaveta;
+abrirGaveta = async function (leadId) {
+  await abrirGavetaBase(leadId);
+
+  let dados;
+  try {
+    dados = await api(`/api/leads/${encodeURIComponent(leadId)}`);
+  } catch {
+    return;
+  }
+
+  const painel = $('#gaveta-painel');
+  const recarregar = () => abrirGaveta(leadId);
+  const secoes = [
+    secaoLinkedin(dados.lead, recarregar),
+    secaoEmail(dados.lead, dados.contatos, recarregar),
+    secaoAtividades(dados.lead, dados.atividades || [], recarregar),
+  ];
+
+  const botaoExcluir = painel.querySelector('.btn-perigo');
+  for (const secao of secoes) {
+    if (botaoExcluir) painel.insertBefore(secao, botaoExcluir);
+    else painel.appendChild(secao);
+  }
+};
+
+// ==========================================================================
+// LIGACAO DAS TELAS NOVAS AO BOOT
+// ==========================================================================
+
+estado.equipe = [];
+
+/**
+ * Estende a inicializacao com o que depende de permissao: abas visiveis,
+ * papeis que a pessoa pode atribuir, kanban e configuracao de e-mail.
+ */
+const iniciarAppBase = iniciarApp;
+iniciarApp = async function () {
+  await iniciarAppBase();
+
+  const permissoes = estado.meta?.permissoes || {};
+
+  // Equipe: so quem gerencia pessoas ve a aba.
+  $('#aba-equipe').hidden = !permissoes.gerenciarUsuarios;
+
+  // Papeis oferecidos no cadastro dependem de quem esta cadastrando: gestor
+  // monta time de SDR, admin cria qualquer papel.
+  const seletorPapel = $('#eq-papel');
+  limpar(seletorPapel);
+  for (const papel of permissoes.papeisQuePodeAtribuir || []) {
+    seletorPapel.appendChild(el('option', { value: papel, texto: papel }));
+  }
+  $('#eq-papel-descricao').textContent = estado.meta?.descricaoPapeis?.[seletorPapel.value] || '';
+
+  // Filtro por SDR no kanban so faz sentido para quem ve o time inteiro.
+  $('#kanban-filtro-dono-area').hidden = !permissoes.verTodosLeads;
+
+  // Credenciais e integracoes sao do admin; o restante da aba (trocar senha)
+  // continua disponivel para todo mundo.
+  if (!permissoes.configurarIntegracoes) {
+    const painelConfig = $('#painel-config');
+    for (const id of ['#btn-salvar-llm', '#btn-salvar-busca', '#btn-remover-busca', '#btn-salvar-email', '#btn-testar-email', '#btn-remover-email']) {
+      const botao = painelConfig.querySelector(id);
+      if (botao) botao.disabled = true;
+    }
+  }
+
+  await carregarEquipe();
+  await carregarConfigEmail();
+  await carregarKanban();
+
+  // Senha definida por outra pessoa: a troca e obrigatoria e a pessoa precisa
+  // ser levada ate ela, nao apenas avisada.
+  if (estado.usuario?.trocaSenhaObrigatoria) {
+    for (const aba of $$('.aba')) aba.classList.toggle('ativa', aba.dataset.aba === 'config');
+    for (const painel of $$('.painel')) painel.hidden = painel.id !== 'painel-config';
+    toast('Sua senha foi definida por outra pessoa. Troque agora, no fim desta página.', 'erro');
+    $('#senha-atual')?.focus();
+  }
+};

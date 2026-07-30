@@ -40,8 +40,10 @@
     </div>
 
     <nav class="abas" id="abas">
-      <button class="aba ativa" data-aba="pipeline" type="button">Pipeline</button>
+      <button class="aba ativa" data-aba="kanban" type="button">Meu kanban</button>
+      <button class="aba" data-aba="pipeline" type="button">Pipeline</button>
       <button class="aba" data-aba="buscar" type="button">Buscar leads</button>
+      <button class="aba" data-aba="equipe" type="button" id="aba-equipe" hidden>Equipe</button>
       <button class="aba" data-aba="icp" type="button">ICP</button>
       <button class="aba" data-aba="config" type="button">Configurações</button>
     </nav>
@@ -52,8 +54,30 @@
     </div>
   </header>
 
+  <!-- --------------------------------------------------------- KANBAN -->
+  <main id="painel-kanban" class="painel">
+    <div class="barra-ferramentas">
+      <h2 class="titulo-painel" id="kanban-titulo">Meu kanban</h2>
+      <p class="ajuda ajuda-mini" id="kanban-escopo"></p>
+      <div class="espacador"></div>
+      <label class="alternador" id="kanban-filtro-dono-area" hidden>
+        <span>SDR</span>
+        <select id="kanban-filtro-dono" class="campo campo-curto">
+          <option value="">Toda a equipe</option>
+        </select>
+      </label>
+      <button id="btn-recarregar-kanban" class="btn btn-secundario" type="button">Atualizar</button>
+    </div>
+
+    <div id="quadro-kanban" class="quadro"></div>
+    <p id="kanban-vazio" class="vazio" hidden>
+      Seu kanban está vazio. Vá em <strong>Buscar leads</strong> — o que a sua
+      pesquisa encontrar cai aqui, no seu nome.
+    </p>
+  </main>
+
   <!-- ------------------------------------------------------- PIPELINE -->
-  <main id="painel-pipeline" class="painel">
+  <main id="painel-pipeline" class="painel" hidden>
     <div class="cartoes-resumo" id="cartoes-resumo"></div>
 
     <div class="barra-ferramentas">
@@ -89,9 +113,17 @@
         <h2>Nova pesquisa de empresas-cliente</h2>
         <p class="ajuda">
           O agente procura <strong>empresas que precisam contratar a Claves</strong> —
-          nunca médicos. Varre PNCP, web e fontes públicas, qualifica contra o
-          ICP, descarta anti-persona e traz quem aprova a compra, com nome e
-          cargo comprovados em fonte atual.
+          nunca médicos. Varre a web e fontes públicas, qualifica contra o ICP,
+          descarta anti-persona e traz quem aprova a compra, com nome e cargo
+          comprovados em fonte atual.
+        </p>
+        <p class="ajuda ajuda-mini">
+          <strong>Filtro zero:</strong> quem contrata médico por edital, concurso
+          ou licitação está fora — inclusive OS que gere hospital público. Só
+          entra quem contrata direto, por vaga CLT/PJ em canal privado.
+        </p>
+        <p class="ajuda ajuda-mini">
+          O que a pesquisa encontrar cai no <strong>seu kanban</strong>.
         </p>
         <p class="ajuda ajuda-mini">
           Vaga de médico aberta entra como <em>evidência da dor</em> da empresa,
@@ -134,6 +166,48 @@
         <div id="console-agente" class="console">
           <p class="console-vazio">O log da pesquisa aparece aqui em tempo real.</p>
         </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- --------------------------------------------------------- EQUIPE -->
+  <main id="painel-equipe" class="painel" hidden>
+    <div class="colunas">
+      <section class="cartao">
+        <h2>Cadastrar pessoa</h2>
+        <p class="ajuda">
+          O lead encontrado numa pesquisa vai para o kanban de quem apertou o
+          botão. Cadastre aqui quem vai operar.
+        </p>
+
+        <label for="eq-nome">Nome</label>
+        <input id="eq-nome" class="campo" type="text" placeholder="Nome completo">
+
+        <label for="eq-email">E-mail</label>
+        <input id="eq-email" class="campo" type="email" autocomplete="off" placeholder="pessoa@claves.com.br">
+
+        <label for="eq-papel">Papel</label>
+        <select id="eq-papel" class="campo"></select>
+        <p class="ajuda ajuda-mini" id="eq-papel-descricao"></p>
+
+        <label for="eq-senha">Senha inicial (mín. 12 caracteres)</label>
+        <input id="eq-senha" class="campo" type="password" autocomplete="new-password">
+        <p class="ajuda ajuda-mini">
+          A pessoa será obrigada a trocar no primeiro acesso. Combine a senha por
+          um canal seguro — o sistema não envia e-mail de convite.
+        </p>
+
+        <button id="btn-criar-usuario" class="btn btn-primario btn-bloco" type="button">Cadastrar</button>
+        <p id="eq-alerta" class="alerta" hidden></p>
+      </section>
+
+      <section class="cartao">
+        <h2>Equipe</h2>
+        <p class="ajuda">
+          Desativar encerra as sessões na hora. Antes de desativar quem tem
+          carteira, transfira os leads — senão o pipeline fica órfão.
+        </p>
+        <div id="lista-equipe" class="lista-equipe"></div>
       </section>
     </div>
   </main>
@@ -200,6 +274,45 @@
           <button id="btn-remover-busca" class="btn btn-secundario" type="button">Remover</button>
         </div>
         <p id="busca-status" class="ajuda"></p>
+
+        <h3>E-mail (SMTP)</h3>
+        <p class="ajuda">
+          Uma conta da empresa envia; o <strong>Reply-To</strong> aponta para o
+          SDR que disparou, então a resposta cai na caixa de quem está tocando o
+          lead. O CRM <em>envia e registra</em> — não lê caixa de entrada.
+        </p>
+
+        <label for="cfg-email-host">Servidor SMTP</label>
+        <input id="cfg-email-host" class="campo" type="text" placeholder="smtp.gmail.com">
+
+        <label for="cfg-email-porta">Porta</label>
+        <select id="cfg-email-porta" class="campo campo-curto">
+          <option value="587">587 — STARTTLS</option>
+          <option value="465">465 — TLS</option>
+        </select>
+
+        <label for="cfg-email-usuario">Usuário</label>
+        <input id="cfg-email-usuario" class="campo" type="text" autocomplete="off">
+
+        <label for="cfg-email-senha">Senha</label>
+        <input id="cfg-email-senha" class="campo" type="password" autocomplete="off" placeholder="deixe em branco para manter">
+        <p class="ajuda ajuda-mini">
+          Com Gmail ou Microsoft 365 use uma <strong>senha de aplicativo</strong>,
+          não a senha da conta. É cifrada com AES-256-GCM antes de ir para o disco.
+        </p>
+
+        <label for="cfg-email-remetente">E-mail remetente</label>
+        <input id="cfg-email-remetente" class="campo" type="email" autocomplete="off" placeholder="comercial@claves.com.br">
+
+        <label for="cfg-email-nome">Nome do remetente</label>
+        <input id="cfg-email-nome" class="campo" type="text" placeholder="Claves Health">
+
+        <div class="linha-botoes">
+          <button id="btn-salvar-email" class="btn btn-primario" type="button">Salvar</button>
+          <button id="btn-testar-email" class="btn btn-secundario" type="button">Testar conexão</button>
+          <button id="btn-remover-email" class="btn btn-secundario" type="button">Remover</button>
+        </div>
+        <p id="email-alerta" class="alerta" hidden></p>
 
         <h3>Segurança</h3>
         <ul class="lista-seguranca" id="lista-seguranca"></ul>
