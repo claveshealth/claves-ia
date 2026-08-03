@@ -13,7 +13,8 @@
     "gerar-chave": "node scripts/gerar-chave.js",
     "criar-usuario": "node scripts/criar-usuario.js",
     "audit": "npm audit --omit=dev",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "importar-prospeccao": "node scripts/importar-prospeccao.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.72.0"
