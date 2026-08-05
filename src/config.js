@@ -64,26 +64,61 @@ function lerChaveMestra() {
     return { chave: crypto.randomBytes(32), efemera: true };
   }
 
-  let buffer = null;
+  // Formato canonico, produzido por `npm run gerar-chave`: 32 bytes exatos.
   if (/^[0-9a-fA-F]{64}$/.test(bruto)) {
-    buffer = Buffer.from(bruto, 'hex');
-  } else {
-    const decodificado = Buffer.from(bruto, 'base64');
-    // Buffer.from com base64 nunca lanca erro; validamos pelo tamanho.
-    if (decodificado.length === 32) buffer = decodificado;
+    return { chave: Buffer.from(bruto, 'hex'), efemera: false };
+  }
+  const base64 = Buffer.from(bruto, 'base64');
+  // Buffer.from com base64 nunca lanca erro; validamos pelo tamanho.
+  if (base64.length === 32) {
+    return { chave: base64, efemera: false };
   }
 
-  if (!buffer || buffer.length !== 32) {
-    throw new Error(
-      'APP_MASTER_KEY invalida: precisa ser 32 bytes em base64 ou 64 caracteres hex. Gere com: npm run gerar-chave'
-    );
+  /*
+   * Segredo arbitrario (ex.: o valor que o Render gera sozinho com
+   * `generateValue: true`). Derivamos 32 bytes com scrypt em vez de recusar.
+   *
+   * Isto existe para o deploy de um clique: exigir formato exato obrigava o
+   * operador a gerar a chave a mao antes de subir, e errar esse passo so
+   * aparecia no primeiro boot. O sal e fixo de proposito — a derivacao precisa
+   * ser reprodutivel entre reinicios, senao os dados cifrados ficariam
+   * ilegiveis. A seguranca vem da entropia do segredo, nao do sal.
+   *
+   * Exigimos 24 caracteres para nao aceitar uma senha curta como chave mestra.
+   */
+  if (bruto.length >= 24) {
+    const derivada = crypto.scryptSync(bruto, 'claves-crm-chave-mestra-v1', 32);
+    return { chave: derivada, efemera: false };
   }
 
-  return { chave: buffer, efemera: false };
+  throw new Error(
+    'APP_MASTER_KEY invalida: use 64 caracteres hex, 32 bytes em base64, ou um segredo de 24+ caracteres. Gere com: npm run gerar-chave'
+  );
 }
 
 const chaveMestra = lerChaveMestra();
-const appUrl = (process.env.APP_URL || 'http://127.0.0.1:3000').replace(/\/+$/, '');
+
+/**
+ * URL publica da aplicacao.
+ *
+ * Errar esta variavel e a falha mais chata do deploy: ela e comparada com o
+ * cabecalho Origin para barrar CSRF, entao um valor diferente da URL real faz
+ * o login responder 403 sem explicar por que. Por isso, quando a plataforma ja
+ * informa a URL, usamos a dela em vez de exigir que alguem digite igual.
+ *
+ * Render e Railway injetam essas variaveis automaticamente.
+ */
+function descobrirAppUrl() {
+  const explicita = (process.env.APP_URL || '').trim();
+  if (explicita) return explicita;
+
+  if (process.env.RENDER_EXTERNAL_URL) return process.env.RENDER_EXTERNAL_URL.trim();
+  if (process.env.RAILWAY_PUBLIC_DOMAIN) return `https://${process.env.RAILWAY_PUBLIC_DOMAIN.trim()}`;
+
+  return 'http://127.0.0.1:3000';
+}
+
+const appUrl = descobrirAppUrl().replace(/\/+$/, '');
 
 let origemCanonica;
 try {

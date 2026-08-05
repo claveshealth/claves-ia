@@ -4,6 +4,11 @@
 # O banco e um arquivo JSON com escrita atomica; duas instancias sobre o mesmo
 # arquivo corrompem os dados. Plataformas que escalam sozinhas (ou que zeram o
 # disco a cada deploy) nao servem sem trocar o armazenamento antes.
+#
+# Este blueprint foi escrito para exigir o minimo de digitacao: a chave mestra
+# e gerada pelo proprio Render e a URL publica e descoberta em tempo de
+# execucao. Sobram duas variaveis, ambas escolha sua: o e-mail e a senha do
+# primeiro administrador.
 
 services:
   - type: web
@@ -24,22 +29,29 @@ services:
       - key: NODE_ENV
         value: production
 
-      # Cifra as chaves de API no banco. Gerada uma vez e NUNCA trocada:
-      # trocar torna ilegivel tudo o que ja foi salvo.
+      # Cifra as chaves de API dentro do banco. O Render gera e guarda sozinho.
+      #
+      # NAO TROQUE depois do primeiro deploy: a aplicacao deriva a chave real
+      # deste valor, entao mudar torna ilegivel toda chave de API ja salva.
+      # Copie-o para o seu gerenciador de senhas assim que o servico subir — e
+      # ele que torna um backup restauravel.
       - key: APP_MASTER_KEY
-        sync: false        # preencher no painel, nunca no repositorio
+        generateValue: true
 
-      # Precisa bater exatamente com a URL publica, incluindo https://.
-      # E usada para validar Origin (anti-CSRF) e marcar o cookie como Secure.
-      - key: APP_URL
-        sync: false
+      # O Render injeta RENDER_EXTERNAL_URL sozinho, e a aplicacao usa essa URL
+      # para validar Origin e marcar o cookie como Secure. So defina APP_URL se
+      # voce publicar num dominio proprio — ai ela tem prioridade.
+      #
+      # - key: APP_URL
+      #   value: https://crm.claves.com.br
 
       # O Render fica atras de proxy proprio; sem isto o rate limit por IP
       # enxergaria todos os acessos vindos do mesmo endereco.
       - key: TRUST_PROXY
         value: "true"
 
-      # Primeiro acesso. Depois do primeiro boot, REMOVA as duas do painel.
+      # Primeiro acesso. Depois de logar, REMOVA as duas daqui: elas so servem
+      # ao primeiro boot e nao precisam continuar guardadas.
       - key: ADMIN_EMAIL
         sync: false
       - key: ADMIN_PASSWORD

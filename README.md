@@ -14,6 +14,18 @@ fonte pública atual**.
 > recrutamento (Diretor de Operações Médicas, Diretor Médico, Head de Gente/RH,
 > CEO), não profissionais sendo recrutados.
 
+
+## Colocar no ar
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/claveshealth/claves-ia)
+
+Um clique. O Render lê o `render.yaml`, provisiona o disco persistente, gera a
+chave mestra e descobre a URL pública sozinho. **Você só digita o e-mail e a
+senha do primeiro administrador.**
+
+Depois de entrar, cadastre as chaves de LLM, busca e e-mail na própria tela de
+Configurações. Passo a passo e solução de problemas em [DEPLOY.md](DEPLOY.md).
+
 ---
 
 ## O que ele faz

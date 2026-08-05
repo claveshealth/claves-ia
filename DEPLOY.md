@@ -22,7 +22,7 @@ quebradas**:
 
 | Item | Obrigatório | Onde conseguir | Custo |
 |---|---|---|---|
-| **`APP_MASTER_KEY`** | Sim | Você gera: `npm run gerar-chave` | — |
+| **`APP_MASTER_KEY`** | Gerada sozinha¹ | O Render gera; em VPS: `npm run gerar-chave` | — |
 | **Chave de LLM** | Sim | [console.anthropic.com](https://console.anthropic.com) → API Keys | Pago por uso |
 | **Chave de busca** | Sim¹ | [serper.dev](https://serper.dev) (Google) | Faixa gratuita inicial |
 | **SMTP** | Opcional² | Seu provedor de e-mail | — |
@@ -36,16 +36,13 @@ só ao LinkedIn — mas o LinkedIn foi um pedido seu, então na prática é obri
 
 ### 1.2 Detalhamento
 
-**`APP_MASTER_KEY`** — cifra as chaves de API dentro do banco (AES-256-GCM).
-Gere uma vez:
+¹ **`APP_MASTER_KEY`** — cifra as chaves de API dentro do banco (AES-256-GCM).
+No Render o blueprint usa `generateValue: true`: a chave nasce no provedor e
+você não digita nada. Em VPS, gere com `npm run gerar-chave`.
 
-```bash
-npm run gerar-chave
-```
-
-> **Guarde num gerenciador de senhas.** Se você perder ou trocar esta chave,
-> todas as chaves de API já salvas viram ilegíveis e precisam ser recadastradas.
-> Ela não é rotacionável hoje.
+> **Copie o valor para um gerenciador de senhas assim que o serviço subir.**
+> Se você perder ou trocar esta chave, todas as chaves de API já salvas viram
+> ilegíveis, e um backup do banco fica irrestaurável. Ela não é rotacionável.
 
 **Chave de LLM (Anthropic).** É o motor da pesquisa. Recomendo Anthropic porque
 é o único provedor com busca web nativa no servidor — os outros exigem a chave
@@ -69,9 +66,9 @@ conta — a senha normal é recusada por contas com 2FA.
 
 ### 1.3 Decisões que preciso de você
 
-- **Domínio.** Ex.: `crm.claves.com.br`. Precisa de HTTPS — o cookie de sessão é
-  `Secure` e a validação anti-CSRF compara a origem com `APP_URL`.
-  Sem domínio próprio, o Render dá um `*.onrender.com` que serve.
+- **Domínio.** Opcional. O Render já entrega um `*.onrender.com` com HTTPS e a
+  aplicação se configura sozinha para ele. Só decida isto se quiser
+  `crm.claves.com.br` — aí você define `APP_URL` com o domínio.
 - **E-mail e senha do primeiro admin.** A senha precisa de 12+ caracteres.
 - **Quem recebe os 6 leads** da prospecção inicial (e-mail de um SDR cadastrado).
 
@@ -93,14 +90,16 @@ O repositório já traz `render.yaml`.
    **Blueprint** → conecte `claveshealth/claves-ia`. O Render lê o `render.yaml`.
 3. Confirme o **plano Starter**: o gratuito não tem disco persistente e você
    perderia os dados a cada deploy.
-4. Preencha as variáveis marcadas como `sync: false`:
+4. Preencha as duas únicas variáveis pedidas:
 
    | Variável | Valor |
    |---|---|
-   | `APP_MASTER_KEY` | a que você gerou |
-   | `APP_URL` | `https://<seu-app>.onrender.com` (exato, com https) |
    | `ADMIN_EMAIL` | seu e-mail |
    | `ADMIN_PASSWORD` | senha forte, 12+ caracteres |
+
+   `APP_MASTER_KEY` é gerada pelo Render. `APP_URL` não precisa ser informada:
+   a aplicação lê a `RENDER_EXTERNAL_URL` que o provedor injeta. Só defina
+   `APP_URL` se for usar domínio próprio.
 
 5. **Deploy.** Confirme que o disco montou em `/app/data`.
 6. Acesse a URL, faça login e **remova `ADMIN_EMAIL` e `ADMIN_PASSWORD` do
