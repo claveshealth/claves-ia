@@ -1,0 +1,46 @@
+# Deploy no Render — https://render.com
+#
+# Por que Render: precisamos de DISCO PERSISTENTE e de UMA unica instancia.
+# O banco e um arquivo JSON com escrita atomica; duas instancias sobre o mesmo
+# arquivo corrompem os dados. Plataformas que escalam sozinhas (ou que zeram o
+# disco a cada deploy) nao servem sem trocar o armazenamento antes.
+
+services:
+  - type: web
+    name: claves-crm-ia
+    runtime: docker
+    plan: starter          # o plano gratuito NAO oferece disco persistente
+    region: oregon
+    branch: main
+    numInstances: 1        # NAO aumentar: o arquivo de dados tem um dono so
+    healthCheckPath: /
+
+    disk:
+      name: claves-dados
+      mountPath: /app/data # e onde vivem leads, usuarios e chaves cifradas
+      sizeGB: 1
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # Cifra as chaves de API no banco. Gerada uma vez e NUNCA trocada:
+      # trocar torna ilegivel tudo o que ja foi salvo.
+      - key: APP_MASTER_KEY
+        sync: false        # preencher no painel, nunca no repositorio
+
+      # Precisa bater exatamente com a URL publica, incluindo https://.
+      # E usada para validar Origin (anti-CSRF) e marcar o cookie como Secure.
+      - key: APP_URL
+        sync: false
+
+      # O Render fica atras de proxy proprio; sem isto o rate limit por IP
+      # enxergaria todos os acessos vindos do mesmo endereco.
+      - key: TRUST_PROXY
+        value: "true"
+
+      # Primeiro acesso. Depois do primeiro boot, REMOVA as duas do painel.
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false

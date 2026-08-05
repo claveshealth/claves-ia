@@ -1,0 +1,28 @@
+# Alternativa ao Render: VPS proprio (Hetzner, DigitalOcean, Coolify...).
+#
+# Ponha um proxy reverso com TLS na frente (Caddy, Nginx, Traefik). A aplicacao
+# NAO termina TLS sozinha, e o cookie de sessao so vai como Secure quando
+# APP_URL comeca com https://.
+
+services:
+  crm:
+    build: .
+    restart: unless-stopped
+    # Publicado so no loopback: quem fala com a internet e o proxy reverso.
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      # Persistencia dos leads, usuarios e chaves cifradas.
+      - claves-dados:/app/data
+    environment:
+      NODE_ENV: production
+      APP_URL: ${APP_URL:?defina APP_URL com https://seu-dominio}
+      APP_MASTER_KEY: ${APP_MASTER_KEY:?rode npm run gerar-chave}
+      TRUST_PROXY: "true"
+      SESSION_TTL_MIN: "480"
+    # Uma instancia apenas: o arquivo de dados tem um unico dono.
+    deploy:
+      replicas: 1
+
+volumes:
+  claves-dados:
