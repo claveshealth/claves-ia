@@ -48,6 +48,11 @@ rota('POST', '/api/auth/logout', auth.logout);
 rota('GET', '/api/auth/sessao', auth.sessaoAtual);
 rota('POST', '/api/auth/senha', auth.trocarSenha);
 
+// Recuperacao de senha: publicas por definicao — quem esqueceu a senha nao
+// tem sessao. Ambas com limite proprio, mais apertado que o do login.
+rota('POST', '/api/auth/esqueci', auth.esqueciSenha, PUBLICA);
+rota('POST', '/api/auth/redefinir', auth.redefinirComToken, PUBLICA);
+
 rota('GET', '/api/meta', api.metadados);
 
 // Equipe: cadastro de gestor e SDR, reset de senha, transferencia de carteira.

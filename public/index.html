@@ -28,6 +28,49 @@
 
     <button type="submit" class="btn btn-primario btn-bloco">Entrar</button>
     <p id="login-erro" class="alerta alerta-erro" hidden></p>
+
+    <button type="button" id="link-esqueci" class="link-discreto">Esqueci minha senha</button>
+  </form>
+
+  <!-- Pedir link de redefinição -->
+  <form id="form-esqueci" class="cartao-login" hidden>
+    <div class="marca">
+      <span class="marca-simbolo">C</span>
+      <div>
+        <h1>Esqueci minha senha</h1>
+        <p>Enviamos um link de redefinição para o seu e-mail</p>
+      </div>
+    </div>
+
+    <label for="esqueci-email">E-mail da sua conta</label>
+    <input id="esqueci-email" type="email" autocomplete="username" required>
+
+    <button type="submit" class="btn btn-primario btn-bloco">Enviar link</button>
+    <p id="esqueci-alerta" class="alerta" hidden></p>
+
+    <button type="button" id="link-voltar-login" class="link-discreto">Voltar para o login</button>
+  </form>
+
+  <!-- Definir nova senha (chega pelo link do e-mail: /?redefinir=TOKEN) -->
+  <form id="form-redefinir" class="cartao-login" hidden>
+    <div class="marca">
+      <span class="marca-simbolo">C</span>
+      <div>
+        <h1>Nova senha</h1>
+        <p>Escolha uma senha de no mínimo 12 caracteres</p>
+      </div>
+    </div>
+
+    <label for="redefinir-senha">Nova senha</label>
+    <input id="redefinir-senha" type="password" autocomplete="new-password" required>
+
+    <label for="redefinir-confirmacao">Confirme a nova senha</label>
+    <input id="redefinir-confirmacao" type="password" autocomplete="new-password" required>
+
+    <button type="submit" class="btn btn-primario btn-bloco">Salvar e entrar</button>
+    <p id="redefinir-alerta" class="alerta" hidden></p>
+
+    <button type="button" id="link-cancelar-redefinir" class="link-discreto">Voltar para o login</button>
   </form>
 </section>
 

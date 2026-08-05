@@ -42,6 +42,9 @@ setInterval(limpar, 5 * 60 * 1000).unref();
 
 const REGRAS = {
   login: { limite: 8, janelaMs: 15 * 60 * 1000 },
+  // Recuperacao de senha e mais restrita que o login: cada pedido dispara um
+  // e-mail, e um atacante usaria a rota para inundar a caixa de um usuario.
+  recuperacao: { limite: 5, janelaMs: 60 * 60 * 1000 },
   api: { limite: 300, janelaMs: 60 * 1000 },
   pesquisa: { limite: 20, janelaMs: 60 * 60 * 1000 },
   testeLlm: { limite: 10, janelaMs: 10 * 60 * 1000 },

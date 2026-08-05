@@ -172,9 +172,12 @@ Automatize isso antes de a base ter valor. Não há backup embutido.
 
 ## 5. O que já foi verificado e o que não foi
 
-**Verificado:** as 18 asserções da suíte (`npm test`), incluindo o pipeline de
-pesquisa ponta a ponta com LLM simulado; a interface em navegador real (kanban,
-arrastar entre colunas, permissões por papel, cadastro de equipe); o
+**Verificado:** as 24 asserções da suíte (`npm test`), incluindo o pipeline de
+pesquisa ponta a ponta com LLM simulado e as regras do token de recuperação de
+senha; a interface em navegador real (kanban, arrastar entre colunas, permissões
+por papel, cadastro de equipe e o fluxo completo de "esqueci minha senha", do
+e-mail ao login com a senha nova); o **envio de e-mail contra um servidor SMTP
+real** (TLS, AUTH, DATA), com a mensagem inspecionada byte a byte; o
 provisionamento por script; e o `npm ci --omit=dev` que a imagem executa.
 
 **Não verificado — teste você na primeira hora:**
@@ -182,9 +185,11 @@ provisionamento por script; e o `npm ci --omit=dev` que a imagem executa.
 1. **A imagem Docker nunca foi construída.** Não havia daemon Docker no ambiente
    onde ela foi escrita. É um Dockerfile simples e o passo mais arriscado
    (`npm ci`) foi validado à parte, mas o primeiro `docker build` é seu.
-2. **Nenhum e-mail real foi entregue.** O protocolo foi testado (MIME, injeção
-   de cabeçalho, STARTTLS); uma entrega, não. Use **Testar conexão** e depois
-   mande um e-mail para você mesmo antes de disparar para um decisor.
+2. **O e-mail nunca passou por Gmail ou Microsoft 365.** A entrega foi provada
+   contra um servidor SMTP real, mas local. Provedores comerciais têm
+   autenticação de aplicativo, SPF/DKIM e filtros de reputação que só o seu
+   domínio revela. Use **Testar conexão** e mande um e-mail para você mesmo
+   antes de disparar para um decisor.
 3. **A pesquisa nunca rodou contra uma API de LLM real.** O pipeline foi provado
    com adaptador simulado. A primeira execução real, faça com profundidade
    **rápida** para calibrar custo antes de soltar a equipe.

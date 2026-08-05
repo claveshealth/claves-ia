@@ -413,3 +413,17 @@ textarea.campo { resize: vertical; font-family: inherit; }
  * aparecer. Isso restabelece o atributo como fonte da verdade.
  */
 [hidden] { display: none !important; }
+
+/* Link em forma de botao, para o fluxo de recuperacao na tela de login. */
+.link-discreto {
+  background: none;
+  border: none;
+  color: var(--texto-2);
+  font-size: .85rem;
+  cursor: pointer;
+  padding: .5rem 0 0;
+  width: 100%;
+  text-align: center;
+  font-family: inherit;
+}
+.link-discreto:hover { color: var(--primaria); text-decoration: underline; }

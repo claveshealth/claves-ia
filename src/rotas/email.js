@@ -56,6 +56,30 @@ function credencial() {
   };
 }
 
+/**
+ * E-mail de sistema (recuperacao de senha e afins): usa a mesma conta SMTP,
+ * mas sem Reply-To de SDR e sem virar atividade de lead. Lanca se o SMTP nao
+ * estiver configurado — quem chama decide o que dizer ao usuario.
+ */
+async function enviarSistema({ para, paraNome, assunto, corpo }) {
+  const cred = credencial();
+  if (!cred) {
+    throw new Error('SMTP nao configurado.');
+  }
+  return smtp.enviar({
+    host: cred.host,
+    porta: cred.porta,
+    usuario: cred.usuario,
+    senha: cred.senha,
+    de: cred.remetenteEmail,
+    deNome: cred.remetenteNome || 'Claves CRM',
+    para,
+    paraNome,
+    assunto,
+    corpo,
+  });
+}
+
 // ------------------------------------------------------------- configuracao
 
 function obterConfiguracao(req, res, contexto) {
@@ -298,6 +322,7 @@ function criarRegistrarAtividade({ leadNoEscopo }) {
 
 module.exports = {
   CONTEXTO_CRIPTO,
+  enviarSistema,
   TIPOS_ATIVIDADE,
   emailConfigurado,
   obterConfiguracao,
