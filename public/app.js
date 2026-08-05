@@ -100,6 +100,11 @@ function formatarData(iso) {
 function mostrarLogin() {
   $('#tela-login').hidden = false;
   $('#app').hidden = true;
+  // A tela de login tem tres cartoes (entrar / esqueci / nova senha). Sem
+  // escolher um, dois ficariam visiveis ao mesmo tempo — por exemplo quando a
+  // sessao expira enquanto alguem esta no fluxo de recuperacao.
+  const comToken = new URL(window.location.href).searchParams.get('redefinir');
+  mostrarCartaoLogin(comToken ? 'redefinir' : 'login');
 }
 
 function mostrarApp() {
@@ -986,6 +991,13 @@ async function iniciarApp() {
 }
 
 (async function principal() {
+  // Um link de redefinicao vence a sessao existente. Quem clica nele quer
+  // trocar a senha; mostrar a aplicacao porque havia sessao aberta (a propria
+  // ou a de outra pessoa, num computador compartilhado) so confundiria.
+  if (new URL(window.location.href).searchParams.get('redefinir')) {
+    return mostrarLogin();
+  }
+
   try {
     const sessao = await api('/api/auth/sessao');
     estado.usuario = sessao.usuario;
@@ -1621,3 +1633,88 @@ iniciarApp = async function () {
     $('#senha-atual')?.focus();
   }
 };
+
+// ==========================================================================
+// ESQUECI MINHA SENHA
+// ==========================================================================
+
+/**
+ * Alterna entre os tres cartoes da tela de login (entrar, pedir link, definir
+ * nova senha). Sao formularios irmaos: mostrar um esconde os outros.
+ */
+function mostrarCartaoLogin(qual) {
+  $('#tela-login').hidden = false;
+  $('#app').hidden = true;
+  $('#form-login').hidden = qual !== 'login';
+  $('#form-esqueci').hidden = qual !== 'esqueci';
+  $('#form-redefinir').hidden = qual !== 'redefinir';
+}
+
+$('#link-esqueci').addEventListener('click', () => {
+  mostrarAlerta('#esqueci-alerta', '');
+  $('#esqueci-email').value = $('#login-email').value;
+  mostrarCartaoLogin('esqueci');
+  $('#esqueci-email').focus();
+});
+
+$('#link-voltar-login').addEventListener('click', () => mostrarCartaoLogin('login'));
+
+$('#link-cancelar-redefinir').addEventListener('click', () => {
+  // Limpa o token da URL: um link ja usado nao deve continuar no historico.
+  window.history.replaceState({}, '', '/');
+  mostrarCartaoLogin('login');
+});
+
+$('#form-esqueci').addEventListener('submit', async (evento) => {
+  evento.preventDefault();
+  mostrarAlerta('#esqueci-alerta', '');
+
+  const botao = evento.target.querySelector('button[type=submit]');
+  botao.disabled = true;
+  try {
+    const resposta = await api('/api/auth/esqueci', {
+      method: 'POST',
+      body: { email: $('#esqueci-email').value },
+    });
+    // A resposta e sempre a mesma, exista o e-mail ou nao.
+    mostrarAlerta('#esqueci-alerta', resposta.mensagem, 'ok');
+  } catch (falha) {
+    mostrarAlerta('#esqueci-alerta', falha.message);
+  } finally {
+    botao.disabled = false;
+  }
+});
+
+$('#form-redefinir').addEventListener('submit', async (evento) => {
+  evento.preventDefault();
+  mostrarAlerta('#redefinir-alerta', '');
+
+  const senha = $('#redefinir-senha').value;
+  if (senha !== $('#redefinir-confirmacao').value) {
+    return mostrarAlerta('#redefinir-alerta', 'As senhas não conferem.');
+  }
+
+  const token = new URL(window.location.href).searchParams.get('redefinir');
+  const botao = evento.target.querySelector('button[type=submit]');
+  botao.disabled = true;
+  try {
+    const resposta = await api('/api/auth/redefinir', {
+      method: 'POST',
+      body: { token, novaSenha: senha },
+    });
+    // Token e de uso unico: tirar da URL evita reenvio ao recarregar.
+    window.history.replaceState({}, '', '/');
+    $('#redefinir-senha').value = '';
+    $('#redefinir-confirmacao').value = '';
+    mostrarCartaoLogin('login');
+    mostrarAlerta('#login-erro', resposta.mensagem, 'ok');
+  } catch (falha) {
+    mostrarAlerta('#redefinir-alerta', falha.message);
+  } finally {
+    botao.disabled = false;
+  }
+});
+
+// O link do e-mail chega como /?redefinir=TOKEN. Quem trata isso e
+// mostrarLogin(), chamada por principal() quando nao ha sessao valida — assim
+// o cartao certo aparece uma vez so, sem competir com a checagem de sessao.

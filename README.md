@@ -102,6 +102,12 @@ SDR vê e mexe apenas nos próprios leads — lead de outro responde `404`, não
 `403`, para não revelar que existe. Gestor e admin veem o quadro da equipe, com
 o dono em cada cartão e filtro por SDR.
 
+**Esqueci minha senha** funciona sozinho, na tela de login: o CRM envia um link
+de uso único, válido por 1 hora. O token nunca é gravado em texto puro — só o
+hash — e a resposta da rota é idêntica exista o e-mail ou não, para não revelar
+quais endereços têm conta. Precisa de SMTP configurado; sem ele, o caminho é o
+gestor redefinir na aba Equipe.
+
 Regras que impedem o sistema de se trancar: ninguém muda o próprio papel, se
 desativa ou redefine a própria senha por essa via, e sempre resta ao menos um
 admin ativo. Usuário não é apagado, é **desativado** — apagar orfanaria os leads
