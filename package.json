@@ -1,12 +1,23 @@
 {
-  "name": "claves-health-ia",
-  "version": "1.0.0",
-  "description": "Proxy IA para Claves Health ATS",
+  "name": "claves-crm-ia",
+  "version": "2.0.0",
+  "description": "CRM da Claves Health com agentes de IA para prospeccao profunda de leads (Tier 1-4) no mercado de saude",
   "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
+  "private": true,
   "engines": {
-    "node": ">=18"
-  }
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "gerar-chave": "node scripts/gerar-chave.js",
+    "criar-usuario": "node scripts/criar-usuario.js",
+    "audit": "npm audit --omit=dev",
+    "test": "node --test test/*.test.js",
+    "importar-prospeccao": "node scripts/importar-prospeccao.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.72.0"
+  },
+  "license": "UNLICENSED"
 }

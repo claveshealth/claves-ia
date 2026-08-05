@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Claves CRM IA</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<!-- ------------------------------------------------------------- LOGIN -->
+<section id="tela-login" class="tela-login" hidden>
+  <form id="form-login" class="cartao-login" autocomplete="on">
+    <div class="marca">
+      <span class="marca-simbolo">C</span>
+      <div>
+        <h1>Claves CRM</h1>
+        <p>Prospecção B2B com agentes de IA</p>
+      </div>
+    </div>
+
+    <label for="login-email">E-mail</label>
+    <input id="login-email" name="email" type="email" autocomplete="username" required>
+
+    <label for="login-senha">Senha</label>
+    <input id="login-senha" name="senha" type="password" autocomplete="current-password" required>
+
+    <button type="submit" class="btn btn-primario btn-bloco">Entrar</button>
+    <p id="login-erro" class="alerta alerta-erro" hidden></p>
+  </form>
+</section>
+
+<!-- --------------------------------------------------------------- APP -->
+<div id="app" class="app" hidden>
+  <header class="topo">
+    <div class="marca marca-compacta">
+      <span class="marca-simbolo">C</span>
+      <strong>Claves CRM IA</strong>
+    </div>
+
+    <nav class="abas" id="abas">
+      <button class="aba ativa" data-aba="kanban" type="button">Meu kanban</button>
+      <button class="aba" data-aba="pipeline" type="button">Pipeline</button>
+      <button class="aba" data-aba="buscar" type="button">Buscar leads</button>
+      <button class="aba" data-aba="equipe" type="button" id="aba-equipe" hidden>Equipe</button>
+      <button class="aba" data-aba="icp" type="button">ICP</button>
+      <button class="aba" data-aba="config" type="button">Configurações</button>
+    </nav>
+
+    <div class="topo-direita">
+      <span id="usuario-atual" class="usuario"></span>
+      <button id="btn-sair" class="btn btn-fantasma" type="button">Sair</button>
+    </div>
+  </header>
+
+  <!-- --------------------------------------------------------- KANBAN -->
+  <main id="painel-kanban" class="painel">
+    <div class="barra-ferramentas">
+      <h2 class="titulo-painel" id="kanban-titulo">Meu kanban</h2>
+      <p class="ajuda ajuda-mini" id="kanban-escopo"></p>
+      <div class="espacador"></div>
+      <label class="alternador" id="kanban-filtro-dono-area" hidden>
+        <span>SDR</span>
+        <select id="kanban-filtro-dono" class="campo campo-curto">
+          <option value="">Toda a equipe</option>
+        </select>
+      </label>
+      <button id="btn-recarregar-kanban" class="btn btn-secundario" type="button">Atualizar</button>
+    </div>
+
+    <div id="quadro-kanban" class="quadro"></div>
+    <p id="kanban-vazio" class="vazio" hidden>
+      Seu kanban está vazio. Vá em <strong>Buscar leads</strong> — o que a sua
+      pesquisa encontrar cai aqui, no seu nome.
+    </p>
+  </main>
+
+  <!-- ------------------------------------------------------- PIPELINE -->
+  <main id="painel-pipeline" class="painel" hidden>
+    <div class="cartoes-resumo" id="cartoes-resumo"></div>
+
+    <div class="barra-ferramentas">
+      <input id="filtro-busca" type="search" placeholder="Buscar empresa, cidade, segmento..." class="campo">
+      <select id="filtro-tier" class="campo campo-curto">
+        <option value="">Todos os tiers</option>
+        <option value="1">Tier 1</option>
+        <option value="2">Tier 2</option>
+        <option value="3">Tier 3</option>
+        <option value="4">Tier 4</option>
+      </select>
+      <select id="filtro-status" class="campo campo-curto">
+        <option value="">Todos os status</option>
+      </select>
+      <label class="alternador">
+        <input id="filtro-descartados" type="checkbox">
+        <span>Mostrar descartados</span>
+      </label>
+      <div class="espacador"></div>
+      <a id="btn-exportar" class="btn btn-secundario" href="/api/leads/exportar">Exportar CSV</a>
+    </div>
+
+    <div id="lista-leads" class="lista-leads"></div>
+    <p id="pipeline-vazio" class="vazio" hidden>
+      Nenhum lead ainda. Vá em <strong>Buscar leads</strong> e dispare a primeira pesquisa.
+    </p>
+  </main>
+
+  <!-- --------------------------------------------------------- BUSCAR -->
+  <main id="painel-buscar" class="painel" hidden>
+    <div class="colunas">
+      <section class="cartao">
+        <h2>Nova pesquisa de empresas-cliente</h2>
+        <p class="ajuda">
+          O agente procura <strong>empresas que precisam contratar a Claves</strong> —
+          nunca médicos. Varre a web e fontes públicas, qualifica contra o ICP,
+          descarta anti-persona e traz quem aprova a compra, com nome e cargo
+          comprovados em fonte atual.
+        </p>
+        <p class="ajuda ajuda-mini">
+          <strong>Filtro zero:</strong> quem contrata médico por edital, concurso
+          ou licitação está fora — inclusive OS que gere hospital público. Só
+          entra quem contrata direto, por vaga CLT/PJ em canal privado.
+        </p>
+        <p class="ajuda ajuda-mini">
+          O que a pesquisa encontrar cai no <strong>seu kanban</strong>.
+        </p>
+        <p class="ajuda ajuda-mini">
+          Vaga de médico aberta entra como <em>evidência da dor</em> da empresa,
+          nunca como oportunidade para profissional.
+        </p>
+
+        <fieldset class="grupo">
+          <legend>Tiers alvo</legend>
+          <div id="tiers-opcoes" class="opcoes-tier"></div>
+        </fieldset>
+
+        <label for="campo-regiao">Região</label>
+        <input id="campo-regiao" class="campo" type="text" placeholder="Ex.: São Paulo, Nordeste, nacional...">
+
+        <label for="campo-segmento">Foco adicional (opcional)</label>
+        <input id="campo-segmento" class="campo" type="text" placeholder="Ex.: diálise, telemedicina ocupacional, hospitais em expansão">
+
+        <label for="campo-profundidade">Profundidade</label>
+        <select id="campo-profundidade" class="campo">
+          <option value="rapida">Rápida — varredura ampla, 3 dossiês</option>
+          <option value="padrao" selected>Padrão — equilíbrio, 6 dossiês</option>
+          <option value="profunda">Profunda — investigação máxima, 10 dossiês</option>
+        </select>
+
+        <label for="campo-credencial">Modelo de IA</label>
+        <select id="campo-credencial" class="campo"></select>
+
+        <button id="btn-pesquisar" class="btn btn-primario btn-bloco btn-grande" type="button">
+          Buscar empresas que precisam da Claves
+        </button>
+        <button id="btn-cancelar" class="btn btn-secundario btn-bloco" type="button" hidden>
+          Cancelar pesquisa
+        </button>
+
+        <p id="busca-alerta" class="alerta" hidden></p>
+      </section>
+
+      <section class="cartao cartao-console">
+        <h2>Atividade do agente</h2>
+        <div id="console-agente" class="console">
+          <p class="console-vazio">O log da pesquisa aparece aqui em tempo real.</p>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- --------------------------------------------------------- EQUIPE -->
+  <main id="painel-equipe" class="painel" hidden>
+    <div class="colunas">
+      <section class="cartao">
+        <h2>Cadastrar pessoa</h2>
+        <p class="ajuda">
+          O lead encontrado numa pesquisa vai para o kanban de quem apertou o
+          botão. Cadastre aqui quem vai operar.
+        </p>
+
+        <label for="eq-nome">Nome</label>
+        <input id="eq-nome" class="campo" type="text" placeholder="Nome completo">
+
+        <label for="eq-email">E-mail</label>
+        <input id="eq-email" class="campo" type="email" autocomplete="off" placeholder="pessoa@claves.com.br">
+
+        <label for="eq-papel">Papel</label>
+        <select id="eq-papel" class="campo"></select>
+        <p class="ajuda ajuda-mini" id="eq-papel-descricao"></p>
+
+        <label for="eq-senha">Senha inicial (mín. 12 caracteres)</label>
+        <input id="eq-senha" class="campo" type="password" autocomplete="new-password">
+        <p class="ajuda ajuda-mini">
+          A pessoa será obrigada a trocar no primeiro acesso. Combine a senha por
+          um canal seguro — o sistema não envia e-mail de convite.
+        </p>
+
+        <button id="btn-criar-usuario" class="btn btn-primario btn-bloco" type="button">Cadastrar</button>
+        <p id="eq-alerta" class="alerta" hidden></p>
+      </section>
+
+      <section class="cartao">
+        <h2>Equipe</h2>
+        <p class="ajuda">
+          Desativar encerra as sessões na hora. Antes de desativar quem tem
+          carteira, transfira os leads — senão o pipeline fica órfão.
+        </p>
+        <div id="lista-equipe" class="lista-equipe"></div>
+      </section>
+    </div>
+  </main>
+
+  <!-- ------------------------------------------------------------ ICP -->
+  <main id="painel-icp" class="painel" hidden>
+    <div id="conteudo-icp"></div>
+  </main>
+
+  <!-- --------------------------------------------------------- CONFIG -->
+  <main id="painel-config" class="painel" hidden>
+    <div class="colunas">
+      <section class="cartao">
+        <h2>Chave de API de LLM</h2>
+        <p class="ajuda">
+          A chave é cifrada com AES-256-GCM antes de ir para o disco e nunca é
+          devolvida pela API — só a máscara. Anthropic é o provedor recomendado:
+          é o único com busca web nativa no servidor.
+        </p>
+
+        <label for="cfg-provedor">Provedor</label>
+        <select id="cfg-provedor" class="campo"></select>
+
+        <label for="cfg-apelido">Apelido</label>
+        <input id="cfg-apelido" class="campo" type="text" placeholder="Ex.: Claude produção">
+
+        <label for="cfg-modelo">Modelo</label>
+        <input id="cfg-modelo" class="campo" type="text" list="lista-modelos" placeholder="claude-opus-5">
+        <datalist id="lista-modelos"></datalist>
+
+        <label for="cfg-baseurl">Base URL (opcional)</label>
+        <input id="cfg-baseurl" class="campo" type="url" placeholder="https://...">
+        <p class="ajuda ajuda-mini">
+          Preencha para apontar a qualquer API compatível (OpenRouter, Groq,
+          DeepSeek, Azure, gateway próprio). Só https, e endereços de rede
+          interna são bloqueados.
+        </p>
+
+        <label for="cfg-chave">Chave de API</label>
+        <input id="cfg-chave" class="campo" type="password" autocomplete="off" placeholder="sk-...">
+
+        <button id="btn-salvar-llm" class="btn btn-primario btn-bloco" type="button">Salvar chave</button>
+        <p id="cfg-alerta" class="alerta" hidden></p>
+
+        <h3>Credenciais cadastradas</h3>
+        <div id="lista-credenciais" class="lista-credenciais"></div>
+      </section>
+
+      <section class="cartao">
+        <h2>API de busca web</h2>
+        <p class="ajuda">
+          Necessária apenas se você usar um provedor <em>sem</em> busca nativa
+          (OpenAI-compatível ou Gemini). Com Anthropic, pode deixar em branco.
+        </p>
+
+        <label for="cfg-busca-provedor">Provedor de busca</label>
+        <select id="cfg-busca-provedor" class="campo"></select>
+
+        <label for="cfg-busca-chave">Chave de API</label>
+        <input id="cfg-busca-chave" class="campo" type="password" autocomplete="off">
+
+        <div class="linha-botoes">
+          <button id="btn-salvar-busca" class="btn btn-primario" type="button">Salvar</button>
+          <button id="btn-remover-busca" class="btn btn-secundario" type="button">Remover</button>
+        </div>
+        <p id="busca-status" class="ajuda"></p>
+
+        <h3>E-mail (SMTP)</h3>
+        <p class="ajuda">
+          Uma conta da empresa envia; o <strong>Reply-To</strong> aponta para o
+          SDR que disparou, então a resposta cai na caixa de quem está tocando o
+          lead. O CRM <em>envia e registra</em> — não lê caixa de entrada.
+        </p>
+
+        <label for="cfg-email-host">Servidor SMTP</label>
+        <input id="cfg-email-host" class="campo" type="text" placeholder="smtp.gmail.com">
+
+        <label for="cfg-email-porta">Porta</label>
+        <select id="cfg-email-porta" class="campo campo-curto">
+          <option value="587">587 — STARTTLS</option>
+          <option value="465">465 — TLS</option>
+        </select>
+
+        <label for="cfg-email-usuario">Usuário</label>
+        <input id="cfg-email-usuario" class="campo" type="text" autocomplete="off">
+
+        <label for="cfg-email-senha">Senha</label>
+        <input id="cfg-email-senha" class="campo" type="password" autocomplete="off" placeholder="deixe em branco para manter">
+        <p class="ajuda ajuda-mini">
+          Com Gmail ou Microsoft 365 use uma <strong>senha de aplicativo</strong>,
+          não a senha da conta. É cifrada com AES-256-GCM antes de ir para o disco.
+        </p>
+
+        <label for="cfg-email-remetente">E-mail remetente</label>
+        <input id="cfg-email-remetente" class="campo" type="email" autocomplete="off" placeholder="comercial@claves.com.br">
+
+        <label for="cfg-email-nome">Nome do remetente</label>
+        <input id="cfg-email-nome" class="campo" type="text" placeholder="Claves Health">
+
+        <div class="linha-botoes">
+          <button id="btn-salvar-email" class="btn btn-primario" type="button">Salvar</button>
+          <button id="btn-testar-email" class="btn btn-secundario" type="button">Testar conexão</button>
+          <button id="btn-remover-email" class="btn btn-secundario" type="button">Remover</button>
+        </div>
+        <p id="email-alerta" class="alerta" hidden></p>
+
+        <h3>Segurança</h3>
+        <ul class="lista-seguranca" id="lista-seguranca"></ul>
+
+        <h3>Trocar minha senha</h3>
+        <label for="senha-atual">Senha atual</label>
+        <input id="senha-atual" class="campo" type="password" autocomplete="current-password">
+        <label for="senha-nova">Nova senha (mín. 12 caracteres)</label>
+        <input id="senha-nova" class="campo" type="password" autocomplete="new-password">
+        <button id="btn-trocar-senha" class="btn btn-secundario btn-bloco" type="button">Trocar senha</button>
+        <p id="senha-alerta" class="alerta" hidden></p>
+      </section>
+    </div>
+  </main>
+
+  <!-- --------------------------------------------------- DETALHE LEAD -->
+  <aside id="gaveta" class="gaveta" hidden>
+    <div class="gaveta-fundo" id="gaveta-fundo"></div>
+    <div class="gaveta-painel" id="gaveta-painel" role="dialog" aria-label="Detalhe do lead"></div>
+  </aside>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="/app.js"></script>
+</body>
+</html>
